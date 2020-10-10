@@ -52,3 +52,4 @@ TAGS
 .DS_Stor
 Lexer.hs
 Grammar.hs
+Parser.hs

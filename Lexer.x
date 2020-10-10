@@ -8,11 +8,10 @@ module Lexer where
 $digit = [0-9]
 $alpha = [A-Za-z]
 
-@string = (\"[^\"]*\") | (\'[^\']*\')
-
 tokens :-
     $white                          ;
-    "#".                            ;
+    "#".*                           ;
+    ""
     ","                             { makeToken LComma }
     "."                             { makeToken LDot }
     "="                             { makeToken LAssign }
@@ -47,12 +46,12 @@ makeToken lexeme (pos, _, _, str) len =
     LOpenSqrBracket ->  return (TOpenSqrBracket  pos)
     LCloseSqrBracket -> return (TCloseSqrBracket pos)
     LNumber ->          return (TNumber          pos ((read token) :: Integer) )
-    LVariable ->        return (TVariable        pos $ take (length token - 2) (drop 1 token))
+    LVariable ->        return (TVariable        pos token)
 
 
 -- No idea why I have to write this myself. Documentation doesn't mention it.
 alexEOF :: Alex Token
-alexEOF = return Eof
+alexEOF = return TEof
 
 data Token
   = TComma           { position :: AlexPosn }
@@ -64,7 +63,7 @@ data Token
   | TCloseSqrBracket { position :: AlexPosn }
   | TNumber          { position :: AlexPosn, value :: Integer }
   | TVariable        { position :: AlexPosn, name :: String }
-  | Eof
+  | TEof
   deriving (Eq, Show)
 
 }
