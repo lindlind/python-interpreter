@@ -111,6 +111,7 @@ BoolComp
 
 AtomBool :: {forall expr . IExpr expr => expr Bool}
   : BOOL                                                 { iBoolVal $ bValue $1 }
+  | "(" ExprBool ")"                                     { iBrackets $2 }
 
 NumComp :: {forall expr . IExpr expr => expr Bool}
 NumComp
@@ -163,6 +164,7 @@ AtomNum :: {forall expr . IExpr expr => expr Number}
 AtomNum
   : INT                                                  { iIntVal $ iValue $1 }
   | FLOAT                                                { iFloatVal $ fValue $1 }
+  | "(" ExprNum ")"                                      { iBrackets $2 }
 
 
 {
@@ -202,6 +204,7 @@ class IExpr expr where
   iBoolVal  :: Bool    -> expr Bool
   iIntVal   :: Integer -> expr Number
   iFloatVal :: Float   -> expr Number
+  iBrackets :: expr t -> expr t
 
 parseError :: Token -> Alex a
 parseError token =

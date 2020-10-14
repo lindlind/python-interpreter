@@ -13,7 +13,7 @@ castTS :: ToS a -> ToS b
 castTS (ToS s) = ToS s
 
 instance IExpr ToS where
-  iAssign a b = (castTS $ (ToS . show) a) <> (ToS " = ") <> castTS b
+  iAssign a b = (castTS $ ToS a) <> (ToS " = ") <> castTS b
   iProcedure = castTS
   iOr  a b = a <> (ToS " or ")  <> b
   iAnd a b = a <> (ToS " and ") <> b
@@ -40,6 +40,7 @@ instance IExpr ToS where
   iBoolVal  = ToS . show
   iIntVal   = ToS . show
   iFloatVal = ToS . show
+  iBrackets a = (ToS "( ") <> a <> (ToS " )")
 
 prettyPrint :: Either String [Statement] -> String
 prettyPrint (Left s) = s
