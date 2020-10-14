@@ -27,8 +27,10 @@ tokens :-
   @onelineComment                 ;
   @multilineComment               ;
   @type                           { makeToken LType }
+  @boolean                        { makeToken LBool }
+  @string                         { makeToken LString }
+  @integer                        { makeToken LInteger }
   @float                          { makeToken LFloat }
-  @variable                       { makeToken LVariable }
   ","                             { makeToken LComma }
   "."                             { makeToken LDot }
   "("                             { makeToken LOpenBracket }
@@ -36,17 +38,34 @@ tokens :-
   "["                             { makeToken LOpenSqrBracket }
   "]"                             { makeToken LCloseSqrBracket }
   "="                             { makeToken LAssign }
+  "or"                            { makeToken LOr }
+  "and"                           { makeToken LAnd }
+  "not"                           { makeToken LNot }
+  "<"                             { makeToken LLT }
+  ">"                             { makeToken LGT }
+  "=="                            { makeToken LEq }
+  "!="                            { makeToken LNEq }
+  "<="                            { makeToken LLTE }
+  ">="                            { makeToken LGTE }
+  "|"                             { makeToken LBitOr }
+  "^"                             { makeToken LBitXor }
+  "&"                             { makeToken LBitAnd }
+  "<<"                            { makeToken LLeftShift }
+  ">>"                            { makeToken LRightShift }
   "+"                             { makeToken LPlus }
   "-"                             { makeToken LMinus }
   "*"                             { makeToken LMult }
   "//"                            { makeToken LDiv }
   "%"                             { makeToken LMod }
   "/"                             { makeToken LFloatDiv }
+  @variable                       { makeToken LVariable }
 
 {
 data Lexeme 
   = LNewline
   | LType
+  | LBool
+  | LString
   | LInteger
   | LFloat
   | LVariable
@@ -57,6 +76,20 @@ data Lexeme
   | LOpenSqrBracket
   | LCloseSqrBracket
   | LAssign
+  | LOr
+  | LAnd
+  | LNot
+  | LLT
+  | LGT
+  | LEq
+  | LNEq
+  | LLTE
+  | LGTE
+  | LBitOr
+  | LBitXor
+  | LBitAnd
+  | LLeftShift
+  | LRightShift
   | LPlus
   | LMinus
   | LMult
@@ -71,6 +104,11 @@ makeToken lexeme (pos, _, _, str) len =
   in case lexeme of
     LNewline ->         return (TNewline         pos)
     LType ->            return (TType            pos token)
+    LBool ->            return (TBool            pos (case token of
+                                                          "True" -> True
+                                                          "False" -> False) 
+                                                      )
+    LString ->          return (TString          pos (take (len - 2) $ drop 1 token) )
     LInteger ->         return (TInteger         pos ((read token) :: Integer) )
     LFloat ->           return (TFloat           pos ((read token) :: Float) )
     LVariable ->        return (TVariable        pos token)
@@ -81,6 +119,20 @@ makeToken lexeme (pos, _, _, str) len =
     LOpenSqrBracket ->  return (TOpenSqrBracket  pos)
     LCloseSqrBracket -> return (TCloseSqrBracket pos)
     LAssign ->          return (TAssign          pos)
+    LOr ->              return (TOr              pos)
+    LAnd ->             return (TAnd             pos)
+    LNot ->             return (TNot             pos)
+    LLT ->              return (TLT              pos)
+    LGT ->              return (TGT              pos)
+    LEq ->              return (TEq              pos)
+    LNEq ->             return (TNEq             pos)
+    LLTE ->             return (TLTE             pos)
+    LGTE ->             return (TGTE             pos)
+    LBitOr ->           return (TBitOr           pos)
+    LBitXor ->          return (TBitXor          pos)
+    LBitAnd ->          return (TBitAnd          pos)
+    LLeftShift ->       return (TLeftShift       pos)
+    LRightShift ->      return (TRightShift      pos)
     LPlus ->            return (TPlus            pos)
     LMinus ->           return (TMinus           pos)
     LMult ->            return (TMult            pos)
@@ -94,6 +146,8 @@ alexEOF = return TEof
 data Token
   = TNewline         { position :: AlexPosn }
   | TType            { position :: AlexPosn, name :: String }
+  | TBool            { position :: AlexPosn, bValue :: Bool }
+  | TString          { position :: AlexPosn, sValue :: String }
   | TInteger         { position :: AlexPosn, iValue :: Integer }
   | TFloat           { position :: AlexPosn, fValue :: Float }
   | TVariable        { position :: AlexPosn, name :: String }
@@ -104,6 +158,20 @@ data Token
   | TOpenSqrBracket  { position :: AlexPosn }
   | TCloseSqrBracket { position :: AlexPosn }
   | TAssign          { position :: AlexPosn }
+  | TOr              { position :: AlexPosn }
+  | TAnd             { position :: AlexPosn }
+  | TNot             { position :: AlexPosn }
+  | TLT              { position :: AlexPosn }
+  | TGT              { position :: AlexPosn }
+  | TEq              { position :: AlexPosn }
+  | TNEq             { position :: AlexPosn }
+  | TLTE             { position :: AlexPosn }
+  | TGTE             { position :: AlexPosn }
+  | TBitOr           { position :: AlexPosn }
+  | TBitXor          { position :: AlexPosn }
+  | TBitAnd          { position :: AlexPosn }
+  | TLeftShift       { position :: AlexPosn }
+  | TRightShift      { position :: AlexPosn }
   | TPlus            { position :: AlexPosn }
   | TMinus           { position :: AlexPosn }
   | TMult            { position :: AlexPosn }
