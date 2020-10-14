@@ -1,4 +1,8 @@
 {
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE RankNTypes #-}
+
 module Parser where
 
 import Lexer
@@ -12,7 +16,8 @@ import Lexer
 %token
   NEWLINE       { TNewline          _ }
   TYPE          { TType             _ name }
-  INT           { TInteger          _ value }
+  INT           { TInteger          _ iValue }
+  FLOAT         { TFloat            _ fValue }
   VAR           { TVariable         _ name }
   ','           { TComma            _ }
   '.'           { TDot              _ }
@@ -24,74 +29,72 @@ import Lexer
   '+'           { TPlus             _ }
   '-'           { TMinus            _ }
   '*'           { TMult             _ }
-  '/'           { TDiv              _ }
+  '//'          { TDiv              _ }
   '%'           { TMod              _ }
-  '//'          { TFloatDiv         _ }
+  '/'           { TFloatDiv         _ }
 
 %%
-
+Code :: {[Statement]}
 Code
   : Statements                            { $1 }
 
+Statements :: {[Statement]}
 Statements
   : NEWLINE Statements                    { $2 }
-  | Statement NEWLINE Statements          { $1 : $3 }      
+  | Statement NEWLINE Statements          { (Statement $1) : $3 }      
   |                                       { [] }
 
+Statement :: {forall expr. IExpr expr => (expr ())}
 Statement
-  : VAR '=' Expr                          { Assign (name $1) $3 }
-  | Expr                                  { Procedure $1 }
+  : VAR '=' Expr                          { iAssign (name $1) $3 }
+  | Expr                                  { iProcedure $1 }
 
+Expr :: {forall expr. IExpr expr => expr Float}
 Expr
   : Sum                                   { $1 }
 
+Sum :: {forall expr. IExpr expr => expr Float}
 Sum
-  : Sum '+' Term                          { Plus $1 $3 }
-  | Sum '-' Term                          { Minus $1 $3 }
+  : Sum '+' Term                          { iPlus $1 $3 }
+  | Sum '-' Term                          { iMinus $1 $3 }
   | Term                                  { $1 }
 
+Term :: {forall expr. IExpr expr => expr Float}
 Term
-  : Term '*' Atom                         { Mult $1 $3 }
-  | Term '/' Atom                         { FloatDiv $1 $3 }
-  | Term '//' Atom                        { Div $1 $3 }
-  | Term '%' Atom                         { Mod $1 $3 }
+  : Term '*' Atom                         { iMult $1 $3 }
+  | Term '/' Atom                         { iFloatDiv $1 $3 }
+  | Term '//' Atom                        { iDiv $1 $3 }
+  | Term '%' Atom                         { iMod $1 $3 }
   | Atom                                  { $1 }
 
+Atom :: {forall expr. IExpr expr => expr Float}
 Atom
-  : VAR                                   { VarName $ name $1 }
-  | INT                                   { IntValue $ value $1 }
-  | Input                                 { $1 }
-
-Input
-  : VAR '(' ')'                           { Function (name $1) [] }
-  | TYPE '(' Input ')'                    { Function (name $1) [$3] }
-
+  : FLOAT                                 { iVal $ fValue $1 }
 
 
 {
 
 lexer = (alexMonadScan >>=)
 
-data Statement = Assign String Expression | Procedure Expression deriving (Eq, Show)
+newtype Statement = Statement (forall expr. IExpr expr => expr ())
 
-data Expression 
-  = Plus Expression Expression
-  | Minus Expression Expression
-  | Mult Expression Expression
-  | FloatDiv Expression Expression
-  | Div Expression Expression
-  | Mod Expression Expression
-  | Function String [Expression] 
-  | VarName String
-  | IntValue Integer
-  deriving (Eq, Show)
+class IExpr expr where
+  iAssign    :: String -> expr t -> expr ()
+  iProcedure :: expr t -> expr ()
+  iPlus      :: expr Float -> expr Float -> expr Float
+  iMinus     :: expr Float -> expr Float -> expr Float
+  iMult      :: expr Float -> expr Float -> expr Float
+  iFloatDiv  :: expr Float -> expr Float -> expr Float
+  iDiv       :: expr Float -> expr Float -> expr Float
+  iMod       :: expr Float -> expr Float -> expr Float
+  iVal       :: Float -> expr Float
 
 parseError :: Token -> Alex a
 parseError token = 
   case position token of
-   (AlexPn _ line column) -> alexError $ "parse error at line " ++ (show line) ++ ", column " ++ (show column) ++ "with token" ++ (show token)
+   (AlexPn _ line column) -> alexError $ "parse error at line " ++ (show line) ++ ", column " ++ (show column) ++ " with token " ++ (show token)
 
--- parse :: String -> Either String [Section]
+--parse :: IExpr expr => String -> Either String [expr ()]
 parse s = runAlex s parseFile
 
 }

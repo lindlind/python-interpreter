@@ -27,7 +27,7 @@ tokens :-
   @onelineComment                 ;
   @multilineComment               ;
   @type                           { makeToken LType }
-  @integer                        { makeToken LInteger }
+  @float                          { makeToken LFloat }
   @variable                       { makeToken LVariable }
   ","                             { makeToken LComma }
   "."                             { makeToken LDot }
@@ -48,6 +48,7 @@ data Lexeme
   = LNewline
   | LType
   | LInteger
+  | LFloat
   | LVariable
   | LComma
   | LDot
@@ -71,6 +72,7 @@ makeToken lexeme (pos, _, _, str) len =
     LNewline ->         return (TNewline         pos)
     LType ->            return (TType            pos token)
     LInteger ->         return (TInteger         pos ((read token) :: Integer) )
+    LFloat ->           return (TFloat           pos ((read token) :: Float) )
     LVariable ->        return (TVariable        pos token)
     LComma ->           return (TComma           pos)
     LDot ->             return (TDot             pos)
@@ -92,7 +94,8 @@ alexEOF = return TEof
 data Token
   = TNewline         { position :: AlexPosn }
   | TType            { position :: AlexPosn, name :: String }
-  | TInteger         { position :: AlexPosn, value :: Integer }
+  | TInteger         { position :: AlexPosn, iValue :: Integer }
+  | TFloat           { position :: AlexPosn, fValue :: Float }
   | TVariable        { position :: AlexPosn, name :: String }
   | TComma           { position :: AlexPosn }
   | TDot             { position :: AlexPosn }
