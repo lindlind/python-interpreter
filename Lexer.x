@@ -1,5 +1,7 @@
 {
 module Lexer where
+
+import Data.List.Split
 }
 
 %wrapper "monad"
@@ -10,55 +12,72 @@ $alpha = [A-Za-z]
 $newline = \n
 
 @onelineComment = "#".*$newline
-@multilineComment = (\'\'\'.*\'\'\') | (\"\"\".*\"\"\")
+@multilineCommentContent = (\'\'\'.*\'\'\') | (\"\"\".*\"\"\")
 
 @type = (int) | (float) | (bool) | (str)
 
-@string = (\"[^\"]*\") | (\'[^\']*\')
-@boolean = (True) | (False)
-@integer = (\+|\-)?0|([1-9][0-9]*)
-@float = (\+|\-)?([0-9]*\.?[0-9]+)|([0-9]+\.)([eE](\+|\-)?[0-9]+)?
+@stringContent'  = [^\']*(\\[rnt\'\"\\][^\']*)*
+@stringContent'' = [^\']*(\\[rnt\'\"\\][^\']*)*
 
+
+@scientific = (\+|\-)? ( ([0-9]*\.?[0-9]+) | ([0-9]+\.) ) [eE](\+|\-)?[0-9]+
+@boolean = (True) | (False)
+@integer = (\+|\-)? ( 0 | ([1-9][0-9]*) )
+@float = (\+|\-)? ( ([0-9]*\.[0-9]+) | ([0-9]+\.) )
 @variable = $alpha [$alpha $digit \_]*
 
 tokens :-
-  $newline                        { makeToken LNewline }
-  $white                          ;
-  @onelineComment                 ;
-  @multilineComment               ;
-  @type                           { makeToken LType }
-  @boolean                        { makeToken LBool }
-  @string                         { makeToken LString }
-  @integer                        { makeToken LInteger }
-  @float                          { makeToken LFloat }
-  ","                             { makeToken LComma }
-  "."                             { makeToken LDot }
-  "("                             { makeToken LOpenBracket }
-  ")"                             { makeToken LCloseBracket }
-  "["                             { makeToken LOpenSqrBracket }
-  "]"                             { makeToken LCloseSqrBracket }
-  "="                             { makeToken LAssign }
-  "or"                            { makeToken LOr }
-  "and"                           { makeToken LAnd }
-  "not"                           { makeToken LNot }
-  "<"                             { makeToken LLT }
-  ">"                             { makeToken LGT }
-  "=="                            { makeToken LEq }
-  "!="                            { makeToken LNEq }
-  "<="                            { makeToken LLTE }
-  ">="                            { makeToken LGTE }
-  "|"                             { makeToken LBitOr }
-  "^"                             { makeToken LBitXor }
-  "&"                             { makeToken LBitAnd }
-  "<<"                            { makeToken LLeftShift }
-  ">>"                            { makeToken LRightShift }
-  "+"                             { makeToken LPlus }
-  "-"                             { makeToken LMinus }
-  "*"                             { makeToken LMult }
-  "//"                            { makeToken LDiv }
-  "%"                             { makeToken LMod }
-  "/"                             { makeToken LFloatDiv }
-  @variable                       { makeToken LVariable }
+<0>                     $newline                        { makeToken LNewline }
+<0>                     $white                          ;
+<0>                     @onelineComment                 ;
+
+<0>                     \'\'\'                          { begin mutlilineCommentSC' }
+<0>                     \"\"\"                          { begin mutlilineCommentSC'' }
+<mutlilineCommentSC'>   @multilineCommentContent        ;
+<mutlilineCommentSC''>  @multilineCommentContent        ;
+<mutlilineCommentSC'>   \'\'\'                          { begin 0 }
+<mutlilineCommentSC''>  \"\"\"                          { begin 0 }
+
+<0>                     @type                           { makeToken LType }
+<0>                     @boolean                        { makeToken LBool }
+
+<0>                     \'                              { begin stringSC' }
+<0>                     \"                              { begin stringSC'' }
+<stringSC'>             @stringContent'                 { makeToken LString }
+<stringSC''>            @stringContent''                { makeToken LString }
+<stringSC'>             \'                              { begin 0 }
+<stringSC''>            \"                              { begin 0 }
+
+<0>                     @scientific                     { makeToken LFloat }
+<0>                     @integer                        { makeToken LInteger }
+<0>                     @float                          { makeToken LFloat }
+<0>                     ","                             { makeToken LComma }
+<0>                     "("                             { makeToken LOpenBracket }
+<0>                     ")"                             { makeToken LCloseBracket }
+<0>                     "["                             { makeToken LOpenSqrBracket }
+<0>                     "]"                             { makeToken LCloseSqrBracket }
+<0>                     "="                             { makeToken LAssign }
+<0>                     "or"                            { makeToken LOr }
+<0>                     "and"                           { makeToken LAnd }
+<0>                     "not"                           { makeToken LNot }
+<0>                     "<"                             { makeToken LLT }
+<0>                     ">"                             { makeToken LGT }
+<0>                     "=="                            { makeToken LEq }
+<0>                     "!="                            { makeToken LNEq }
+<0>                     "<="                            { makeToken LLTE }
+<0>                     ">="                            { makeToken LGTE }
+<0>                     "|"                             { makeToken LBitOr }
+<0>                     "^"                             { makeToken LBitXor }
+<0>                     "&"                             { makeToken LBitAnd }
+<0>                     "<<"                            { makeToken LLeftShift }
+<0>                     ">>"                            { makeToken LRightShift }
+<0>                     "+"                             { makeToken LPlus }
+<0>                     "-"                             { makeToken LMinus }
+<0>                     "*"                             { makeToken LMult }
+<0>                     "//"                            { makeToken LDiv }
+<0>                     "%"                             { makeToken LMod }
+<0>                     "/"                             { makeToken LFloatDiv }
+<0>                     @variable                       { makeToken LVariable }
 
 {
 data Lexeme 
@@ -98,6 +117,20 @@ data Lexeme
   | LFloatDiv
   deriving (Eq, Show)
 
+readFloat :: String -> Float
+readFloat s = 
+  case 
+    splitOn "." s 
+  of
+    s : [] -> (read s) :: Float
+    int : rest : [] -> 
+      case 
+        splitOneOf "eE" rest 
+      of
+        r : []       -> (read ("0" ++ int ++ "." ++ r ++ "0"        )) :: Float
+        r : exp : [] -> (read ("0" ++ int ++ "." ++ r ++ "0e" ++ exp)) :: Float
+
+
 makeToken :: Lexeme -> AlexInput -> Int -> Alex Token
 makeToken lexeme (pos, _, _, str) len = 
   let token = take len str
@@ -105,12 +138,12 @@ makeToken lexeme (pos, _, _, str) len =
     LNewline ->         return (TNewline         pos)
     LType ->            return (TType            pos token)
     LBool ->            return (TBool            pos (case token of
-                                                          "True" -> True
-                                                          "False" -> False) 
+                                                        "True" -> True
+                                                        "False" -> False) 
                                                       )
     LString ->          return (TString          pos (take (len - 2) $ drop 1 token) )
     LInteger ->         return (TInteger         pos ((read token) :: Integer) )
-    LFloat ->           return (TFloat           pos ((read token) :: Float) )
+    LFloat ->           return (TFloat           pos (readFloat token) )
     LVariable ->        return (TVariable        pos token)
     LComma ->           return (TComma           pos)
     LDot ->             return (TDot             pos)
