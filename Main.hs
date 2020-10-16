@@ -37,17 +37,20 @@ instance IExpr ToS where
   iFloatDiv a b = castTS $ a <> (ToS " / ") <> b
   iDiv a b = a <> (ToS " // ") <> b
   iMod a b = a <> (ToS " % ") <> b
+  iUnarPlus = (<>) $ ToS "+"
+  iUnarMinus = (<>) $ ToS "-"
   iBoolVal  = ToS . show
   iIntVal   = ToS . show
   iFloatVal = ToS . show
   iBrackets a = (ToS "( ") <> a <> (ToS " )")
 
-prettyPrint :: Either String [Statement] -> String
-prettyPrint (Left s) = s
-prettyPrint (Right []) = ""
-prettyPrint (Right ((Statement expr) : t)) = toString expr ++ "\n" ++ prettyPrint (Right t)
+prettyPrint :: [Statement] -> String
+prettyPrint  [] = ""
+prettyPrint ((Statement expr) : t) = toString expr ++ "\n" ++ prettyPrint t
 
 main = do
   inh <- openFile "py.py" ReadMode
   contents <- hGetContents inh
-  putStrLn $ (prettyPrint . parse) contents
+  case parse contents of
+    Left s -> putStrLn s
+    Right statements -> putStrLn $ prettyPrint statements

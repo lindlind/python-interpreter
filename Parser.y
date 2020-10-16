@@ -14,40 +14,40 @@ import Lexer
 %monad {Alex}
 %tokentype {Token}
 %token
-  NEWLINE       { TNewline          _ }
-  TYPE          { TType             _ name }
-  BOOL          { TBool             _ bValue }
-  STR           { TString           _ sValue }
-  INT           { TInteger          _ iValue }
-  FLOAT         { TFloat            _ fValue }
-  VAR           { TVariable         _ name }
-  ","           { TComma            _ }
-  "."           { TDot              _ }
-  "("           { TOpenBracket      _ }
-  ")"           { TCloseBracket     _ }
-  "["           { TOpenSqrBracket   _ }
-  "]"           { TCloseSqrBracket  _ }
-  "="           { TAssign           _ }
-  "or"          { TOr               _ }
-  "and"         { TAnd              _ }
-  "not"         { TNot              _ }
-  "<"           { TLT               _ }
-  ">"           { TGT               _ }
-  "=="          { TEq               _ }
-  "!="          { TNEq              _ }
-  "<="          { TLTE              _ }
-  ">="          { TGTE              _ }
-  "|"           { TBitOr            _ }
-  "^"           { TBitXor           _ }
-  "&"           { TBitAnd           _ }
-  "<<"          { TLeftShift        _ }
-  ">>"          { TRightShift       _ }
-  "+"           { TPlus             _ }
-  "-"           { TMinus            _ }
-  "*"           { TMult             _ }
-  "//"          { TDiv              _ }
-  "%"           { TMod              _ }
-  "/"           { TFloatDiv         _ }
+  NEWLINE       { TNewline          _ _ }
+  TYPE          { TType             _ _ name }
+  BOOL          { TBool             _ _ bValue }
+  STR           { TString           _ _ sValue }
+  INT           { TInteger          _ _ iValue }
+  FLOAT         { TFloat            _ _ fValue }
+  VAR           { TVariable         _ _ name }
+  ","           { TComma            _ _ }
+  "."           { TDot              _ _ }
+  "("           { TOpenBracket      _ _ }
+  ")"           { TCloseBracket     _ _ }
+  "["           { TOpenSqrBracket   _ _ }
+  "]"           { TCloseSqrBracket  _ _ }
+  "="           { TAssign           _ _ }
+  "or"          { TOr               _ _ }
+  "and"         { TAnd              _ _ }
+  "not"         { TNot              _ _ }
+  "<"           { TLT               _ _ }
+  ">"           { TGT               _ _ }
+  "=="          { TEq               _ _ }
+  "!="          { TNEq              _ _ }
+  "<="          { TLTE              _ _ }
+  ">="          { TGTE              _ _ }
+  "|"           { TBitOr            _ _ }
+  "^"           { TBitXor           _ _ }
+  "&"           { TBitAnd           _ _ }
+  "<<"          { TLeftShift        _ _ }
+  ">>"          { TRightShift       _ _ }
+  "+"           { TPlus             _ _ }
+  "-"           { TMinus            _ _ }
+  "*"           { TMult             _ _ }
+  "//"          { TDiv              _ _ }
+  "%"           { TMod              _ _ }
+  "/"           { TFloatDiv         _ _ }
 
 %%
 Code :: {[Statement]}
@@ -154,10 +154,16 @@ Sum
 
 Term :: {forall expr . IExpr expr => expr Number}
 Term
-  : Term "*" AtomNum                                     { iMult $1 $3 }
-  | Term "/" AtomNum                                     { iFloatDiv $1 $3 }
-  | Term "//" AtomNum                                    { iDiv $1 $3 }
-  | Term "%" AtomNum                                     { iMod $1 $3 }
+  : Term "*" Unary                                       { iMult $1 $3 }
+  | Term "/" Unary                                       { iFloatDiv $1 $3 }
+  | Term "//" Unary                                      { iDiv $1 $3 }
+  | Term "%" Unary                                       { iMod $1 $3 }
+  | Unary                                                { $1 }
+
+Unary :: {forall expr . IExpr expr => expr Number}
+Unary
+  : "+" Unary                                            { iUnarPlus $2 }
+  | "-" Unary                                            { iUnarMinus $2 }
   | AtomNum                                              { $1 }
 
 AtomNum :: {forall expr . IExpr expr => expr Number}
@@ -201,6 +207,8 @@ class IExpr expr where
   iFloatDiv  :: expr Number -> expr Number -> expr Number
   iDiv       :: expr Number -> expr Number -> expr Number
   iMod       :: expr Number -> expr Number -> expr Number
+  iUnarPlus  :: expr Number -> expr Number
+  iUnarMinus :: expr Number -> expr Number
   iBoolVal  :: Bool    -> expr Bool
   iIntVal   :: Integer -> expr Number
   iFloatVal :: Float   -> expr Number
@@ -208,8 +216,13 @@ class IExpr expr where
 
 parseError :: Token -> Alex a
 parseError token =
-  case position token of
-   (AlexPn _ line column) -> alexError $ "parse error at line " ++ (show line) ++ ", column " ++ (show column) ++ " with token " ++ (show token)
+  let
+    (AlexPn _ line column) = position token
+  in
+    alexError $ "Syntax error: "
+                  ++ "line " ++ (show line) ++ ", "
+                  ++ "column " ++ (show column) ++ ", "
+                  ++ "token " ++  "'" ++ (content token) ++ "'"
 
 --parse :: IExpr expr => String -> Either String [expr ()]
 parse s = runAlex s parseFile
