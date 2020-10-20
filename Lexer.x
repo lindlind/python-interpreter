@@ -2,10 +2,11 @@
 module Lexer where
 
 import Data.List.Split
+import Control.Monad.State.Strict
+import qualified Data.Map.Strict as Map
 }
 
 %wrapper "monad"
--- %wrapper "monadUserState"
 
 $digit = [0-9]
 $alpha = [A-Za-z]
@@ -52,7 +53,7 @@ tokens :-
 <stringSC''>            \"                              { begin 0 }
 
 <0>                     @scientific                     { makeToken LFloat }
-<0>                     @integer                        { makeToken LInteger }
+<0>                     @integer                        { makeToken LInt }
 <0>                     @float                          { makeToken LFloat }
 <0>                     ","                             { makeToken LComma }
 <0>                     "("                             { makeToken LOpenBracket }
@@ -76,19 +77,22 @@ tokens :-
 <0>                     ">>"                            { makeToken LRightShift }
 <0>                     "+"                             { makeToken LPlus }
 <0>                     "-"                             { makeToken LMinus }
+<0>                     "**"                            { makeToken LPower }
 <0>                     "*"                             { makeToken LMult }
 <0>                     "//"                            { makeToken LDiv }
 <0>                     "%"                             { makeToken LMod }
 <0>                     "/"                             { makeToken LFloatDiv }
+<0>                     ":"                             { makeToken LSlice }
 <0>                     @variable                       { makeToken LVariable }
 
 {
+
 data Lexeme 
   = LNewline
   | LType
   | LBool
   | LString
-  | LInteger
+  | LInt
   | LFloat
   | LVariable
   | LComma
@@ -114,10 +118,12 @@ data Lexeme
   | LRightShift
   | LPlus
   | LMinus
+  | LPower
   | LMult
   | LDiv
   | LMod
   | LFloatDiv
+  | LSlice
   deriving (Eq, Show)
 
 readFloat :: String -> Float
@@ -146,8 +152,8 @@ makeToken lexeme (pos, _, _, str) len =
                                                       "False" -> False
                                                   )
     LString ->          return (TString           token pos token)
-    LInteger ->         return (TInteger          token pos $
-                                                    ((read token) :: Integer)
+    LInt ->             return (TInt              token pos $
+                                                    ((read token) :: Int)
                                                   )
     LFloat ->           return (TFloat            token pos $
                                                     readFloat token
@@ -176,10 +182,12 @@ makeToken lexeme (pos, _, _, str) len =
     LRightShift ->      return (TRightShift       token pos)
     LPlus ->            return (TPlus             token pos)
     LMinus ->           return (TMinus            token pos)
+    LPower ->           return (TPower            token pos)
     LMult ->            return (TMult             token pos)
     LDiv ->             return (TDiv              token pos)
     LMod ->             return (TMod              token pos)
     LFloatDiv ->        return (TFloatDiv         token pos)
+    LSlice ->           return (TSlice            token pos)
 
 alexEOF :: Alex Token
 alexEOF = return TEof
@@ -189,7 +197,7 @@ data Token
   | TType            { content :: String, position :: AlexPosn, name :: String }
   | TBool            { content :: String, position :: AlexPosn, bValue :: Bool }
   | TString          { content :: String, position :: AlexPosn, sValue :: String }
-  | TInteger         { content :: String, position :: AlexPosn, iValue :: Integer }
+  | TInt             { content :: String, position :: AlexPosn, iValue :: Int }
   | TFloat           { content :: String, position :: AlexPosn, fValue :: Float }
   | TVariable        { content :: String, position :: AlexPosn, name :: String }
   | TComma           { content :: String, position :: AlexPosn }
@@ -215,10 +223,12 @@ data Token
   | TRightShift      { content :: String, position :: AlexPosn }
   | TPlus            { content :: String, position :: AlexPosn }
   | TMinus           { content :: String, position :: AlexPosn }
+  | TPower           { content :: String, position :: AlexPosn }
   | TMult            { content :: String, position :: AlexPosn }
   | TDiv             { content :: String, position :: AlexPosn }
   | TMod             { content :: String, position :: AlexPosn }
   | TFloatDiv        { content :: String, position :: AlexPosn }
+  | TSlice           { content :: String, position :: AlexPosn }
   | TEof
   deriving (Eq, Show)
 

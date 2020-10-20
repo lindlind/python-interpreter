@@ -1,8 +1,4 @@
 {
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE RankNTypes #-}
-
 module Parser where
 
 import Lexer
@@ -18,7 +14,7 @@ import Lexer
   TYPE          { TType             _ _ name }
   BOOL          { TBool             _ _ bValue }
   STR           { TString           _ _ sValue }
-  INT           { TInteger          _ _ iValue }
+  INT           { TInt              _ _ iValue }
   FLOAT         { TFloat            _ _ fValue }
   VAR           { TVariable         _ _ name }
   ","           { TComma            _ _ }
@@ -44,175 +40,173 @@ import Lexer
   ">>"          { TRightShift       _ _ }
   "+"           { TPlus             _ _ }
   "-"           { TMinus            _ _ }
+  "**"          { TPower            _ _ }
   "*"           { TMult             _ _ }
   "//"          { TDiv              _ _ }
   "%"           { TMod              _ _ }
   "/"           { TFloatDiv         _ _ }
+  ":"           { TSlice            _ _ }
 
 %%
-Code :: {[Statement]}
+Code :: {StatementParse}
 Code
   : Newlines Statements                                  { $2 }
-  | Newlines                                             { [] }
+  | Newlines                                             { EmptySeq }
 
-Statements :: {[Statement]}
+Statements :: {StatementParse}
 Statements
-  : Statement NEWLINE Newlines Statements                { (Statement $1) : $4 }
-  | Statement Newlines                                   { [Statement $1] }
+  : Statement NEWLINE Newlines Statements                { $1 `StmtPrsSeq` $4 }
+  | Statement Newlines                                   { $1 }
 
 Newlines
   : NEWLINE Newlines                                     { }
   |                                                      { }
 
-Statement :: {forall expr. IExpr expr => expr ()}
+Statement :: {StatementParse}
 Statement
-  : Assign                                               { $1 }
-  | Procedure                                            { $1 }
+  : SmallStatement                                       { $1 }
+--  | CompoundStatement                                    
 
-Assign :: {forall expr. IExpr expr => expr ()}
-Assign
-  : VAR "=" ExprBool                                     { iAssign (name $1) $3 }
-  | VAR "=" ExprNum                                      { iAssign (name $1) $3 }
+SmallStatement :: {StatementParse}
+  : Procedure                                            { $1 }
+  | Assignment                                           { $1 }
+--  | Return
+--  | 'pass'
+--  | 'break'
+--  | 'continue'
 
-Procedure :: {forall expr. IExpr expr => expr ()}
+Assignment :: {StatementParse}
+Assignment
+  : VAR "=" Expr                                         { AssignWT $1 $3 }
+
+Procedure :: {StatementParse}
 Procedure
-  : ExprBool                                             { iProcedure $1 }
-  | ExprNum                                              { iProcedure $1 }
+  : Expr                                                 { ProcedureWT $1 }
 
-ExprBool :: {forall expr . IExpr expr => expr Bool}
-ExprBool
+Exprs :: {[ExprParse]}
+Exprs
+  : Expr "," Exprs                                       { $1 : $3 }
+  | Expr                                                 { [$1] }
+
+Expr :: {ExprParse}
+Expr
   : Disj                                                 { $1 }
 
-Disj :: {forall expr . IExpr expr => expr Bool}
+Disj :: {ExprParse}
 Disj
-  : Conj "or" Disj                                       { iOr $1 $3 }
+  : Conj "or" Disj                                       { BinOpWT $1 $2 $3 }
   | Conj                                                 { $1 }
 
-Conj :: {forall expr . IExpr expr => expr Bool}
+Conj :: {ExprParse}
 Conj
-  : Inv "and" Conj                                       { iAnd $1 $3 }
+  : Inv "and" Conj                                       { BinOpWT $1 $2 $3 }
   | Inv                                                  { $1 }
 
-Inv :: {forall expr . IExpr expr => expr Bool}
+Inv :: {ExprParse}
 Inv
-  : "not" Inv                                            { iNot $2 }
+  : "not" Inv                                            { UnOpWT $1 $2 }
   | Comp                                                 { $1 }
 
-Comp :: {forall expr . IExpr expr => expr Bool}
+Comp :: {ExprParse}
 Comp
-  : BoolComp                                             { $1 }
-  | NumComp                                              { $1 } 
+  : BitwiseOr "==" BitwiseOr                             { BinOpWT $1 $2 $3 }
+  | BitwiseOr "!=" BitwiseOr                             { BinOpWT $1 $2 $3 }
+  | BitwiseOr "<" BitwiseOr                              { BinOpWT $1 $2 $3 }
+  | BitwiseOr ">" BitwiseOr                              { BinOpWT $1 $2 $3 }
+  | BitwiseOr "<=" BitwiseOr                             { BinOpWT $1 $2 $3 }
+  | BitwiseOr ">=" BitwiseOr                             { BinOpWT $1 $2 $3 }
+  | BitwiseOr                                            { $1 }
 
-BoolComp :: {forall expr . IExpr expr => expr Bool}
-BoolComp
-  : AtomBool "==" AtomBool                               { iBoolEq $1 $3 }
-  | AtomBool "!=" AtomBool                               { iBoolNEq $1 $3 }
-  | AtomBool                                             { $1 }
-
-AtomBool :: {forall expr . IExpr expr => expr Bool}
-  : BOOL                                                 { iBoolVal $ bValue $1 }
-  | "(" ExprBool ")"                                     { iBrackets $2 }
-
-NumComp :: {forall expr . IExpr expr => expr Bool}
-NumComp
-  : ExprNum "==" ExprNum                                 { iEq $1 $3 }
-  | ExprNum "!=" ExprNum                                 { iNEq $1 $3 }
-  | ExprNum "<" ExprNum                                  { iLT $1 $3 }
-  | ExprNum ">" ExprNum                                  { iGT $1 $3 }
-  | ExprNum "<=" ExprNum                                 { iLTE $1 $3 }
-  | ExprNum ">=" ExprNum                                 { iGTE $1 $3 }
-
-ExprNum :: {forall expr . IExpr expr => expr Number}
-  : BitwiseOr                                            { $1 }
-
-BitwiseOr :: {forall expr . IExpr expr => expr Number}
+BitwiseOr :: {ExprParse}
 BitwiseOr
-  : BitwiseOr "|" BitwiseXor                             { iBitOr $1 $3 }
+  : BitwiseOr "|" BitwiseXor                             { BinOpWT $1 $2 $3 }
   | BitwiseXor                                           { $1 }
 
-BitwiseXor :: {forall expr . IExpr expr => expr Number}
+BitwiseXor :: {ExprParse}
 BitwiseXor
-  : BitwiseXor "^" BitwiseAnd                            { iBitXor $1 $3 }
+  : BitwiseXor "^" BitwiseAnd                            { BinOpWT $1 $2 $3 }
   | BitwiseAnd                                           { $1 }
 
-BitwiseAnd :: {forall expr . IExpr expr => expr Number}
+BitwiseAnd :: {ExprParse}
 BitwiseAnd
-  : BitwiseAnd "&" Shift                                 { iBitAnd $1 $3 }
+  : BitwiseAnd "&" Shift                                 { BinOpWT $1 $2 $3 }
   | Shift                                                { $1 }
 
-Shift :: {forall expr . IExpr expr => expr Number}
+Shift :: {ExprParse}
 Shift
-  : Shift "<<" Sum                                       { iLeftShift $1 $3 }
-  | Shift ">>" Sum                                       { iRightShift $1 $3 }
+  : Shift "<<" Sum                                       { BinOpWT $1 $2 $3 }
+  | Shift ">>" Sum                                       { BinOpWT $1 $2 $3 }
   | Sum                                                  { $1 }
 
-Sum :: {forall expr . IExpr expr => expr Number}
+Sum :: {ExprParse}
 Sum
-  : Sum "+" Term                                         { iPlus $1 $3 }
-  | Sum "-" Term                                         { iMinus $1 $3 }
+  : Sum "+" Term                                         { BinOpWT $1 $2 $3 }
+  | Sum "-" Term                                         { BinOpWT $1 $2 $3 }
   | Term                                                 { $1 }
 
-Term :: {forall expr . IExpr expr => expr Number}
+Term :: {ExprParse}
 Term
-  : Term "*" Unary                                       { iMult $1 $3 }
-  | Term "/" Unary                                       { iFloatDiv $1 $3 }
-  | Term "//" Unary                                      { iDiv $1 $3 }
-  | Term "%" Unary                                       { iMod $1 $3 }
+  : Term "*" Unary                                       { BinOpWT $1 $2 $3 }
+  | Term "/" Unary                                       { BinOpWT $1 $2 $3 }
+  | Term "//" Unary                                      { BinOpWT $1 $2 $3 }
+  | Term "%" Unary                                       { BinOpWT $1 $2 $3 }
   | Unary                                                { $1 }
 
-Unary :: {forall expr . IExpr expr => expr Number}
+Unary :: {ExprParse}
 Unary
-  : "+" Unary                                            { iUnarPlus $2 }
-  | "-" Unary                                            { iUnarMinus $2 }
-  | AtomNum                                              { $1 }
+  : "+" Unary                                            { UnOpWT $1 $2 }
+  | "-" Unary                                            { UnOpWT $1 $2 }
+  | Power                                                { $1 }
 
-AtomNum :: {forall expr . IExpr expr => expr Number}
-AtomNum
-  : INT                                                  { iIntVal $ iValue $1 }
-  | FLOAT                                                { iFloatVal $ fValue $1 }
-  | "(" ExprNum ")"                                      { iBrackets $2 }
+Power :: {ExprParse}
+Power
+  : Primary "**" Unary                                   { BinOpWT $1 $2 $3 }
+  | Primary                                              { $1 }
+
+Primary :: {ExprParse}
+  : Atom                                                 { $1 }
+--  | Primary "(" Arguments ")"                            { FuncWT $1 $3 }
+--  | Primary "[" Slices "]"                               { SliceWT $1 $3 }
+
+Arguments :: {[ExprParse]}
+Arguments
+  : Exprs                                                { $1 }
+  |                                                      { [] }
+
+Slices :: {[ExprParse]}
+Slices
+  : Expr ":" Expr ":" Expr                               { $1 : $3 : $5 : [] }
+  | Expr ":" Expr                                        { $1 : $3 : [] }
+  | Expr                                                 { $1 : [] }
+
+Atom :: {ExprParse}
+Atom
+  : INT                                                  { AtomWT $1 }
+  | FLOAT                                                { AtomWT $1 }
+  | BOOL                                                 { AtomWT $1 }
+  | STR                                                  { AtomWT $1 }
+  | VAR                                                  { AtomWT $1 }
+  | "(" Expr ")"                                         { RecWT $2 }
 
 
 {
 
 lexer = (alexMonadScan >>=)
 
-newtype Statement = Statement (forall expr. IExpr expr => expr ())
+data StatementParse = AssignWT Token ExprParse
+                    | ProcedureWT ExprParse
+                    | StmtPrsSeq StatementParse StatementParse
+                    | EmptySeq
+                    deriving (Eq, Show)
 
-data Number = IntNum   { getInt   :: Integer }
-            | FloatNum { getFloat :: Float   }
+data ExprParse = BinOpWT ExprParse Token ExprParse
+               | UnOpWT Token ExprParse
+               | FuncWT ExprParse [ExprParse]
+               | SliceWT ExprParse [ExprParse]
+               | AtomWT Token
+               | RecWT ExprParse
+               deriving (Eq, Show)
 
-class IExpr expr where
-  iAssign    :: String -> expr t -> expr ()
-  iProcedure :: expr t -> expr ()
-  iOr      :: expr Bool -> expr Bool -> expr Bool
-  iAnd     :: expr Bool -> expr Bool -> expr Bool
-  iNot     :: expr Bool -> expr Bool
-  iBoolEq  :: expr Bool -> expr Bool -> expr Bool
-  iBoolNEq :: expr Bool -> expr Bool -> expr Bool
-  iEq  :: expr Number -> expr Number -> expr Bool
-  iNEq :: expr Number -> expr Number -> expr Bool
-  iLT  :: expr Number -> expr Number -> expr Bool
-  iGT  :: expr Number -> expr Number -> expr Bool
-  iLTE :: expr Number -> expr Number -> expr Bool
-  iGTE :: expr Number -> expr Number -> expr Bool
-  iBitOr      :: expr Number -> expr Number -> expr Number
-  iBitXor     :: expr Number -> expr Number -> expr Number
-  iBitAnd     :: expr Number -> expr Number -> expr Number
-  iLeftShift  :: expr Number -> expr Number -> expr Number
-  iRightShift :: expr Number -> expr Number -> expr Number
-  iPlus      :: expr Number -> expr Number -> expr Number
-  iMinus     :: expr Number -> expr Number -> expr Number
-  iMult      :: expr Number -> expr Number -> expr Number
-  iFloatDiv  :: expr Number -> expr Number -> expr Number
-  iDiv       :: expr Number -> expr Number -> expr Number
-  iMod       :: expr Number -> expr Number -> expr Number
-  iUnarPlus  :: expr Number -> expr Number
-  iUnarMinus :: expr Number -> expr Number
-  iBoolVal  :: Bool    -> expr Bool
-  iIntVal   :: Integer -> expr Number
-  iFloatVal :: Float   -> expr Number
-  iBrackets :: expr t -> expr t
 
 parseError :: Token -> Alex a
 parseError token =
@@ -224,7 +218,7 @@ parseError token =
                   ++ "column " ++ (show column) ++ ", "
                   ++ "token " ++  "'" ++ (content token) ++ "'"
 
---parse :: IExpr expr => String -> Either String [expr ()]
+parse :: String -> Either String StatementParse
 parse s = runAlex s parseFile
 
 }
