@@ -1,124 +1,163 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ConstrainedClassMethods#-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Retyper where
 
 import Lexer
 import Parser
+import ClassDef
 
-import System.IO
 import Control.Monad.Except
 import Control.Monad.State.Strict
 import qualified Data.Map.Strict as Map
 import Data.Typeable
 
+
 data MyException = TypeError String
-
-class (Typeable t, Ord t, Show t) => IPyType t
-instance IPyType Bool
-instance IPyType Double
-instance IPyType Int
-instance IPyType String
-
-class IPyType t => IPyNumType t
-instance IPyNumType Double
-instance IPyNumType Int
 
 data PyType where
   PyType :: IPyType a => a -> PyType
 
+fromPyTypeInt :: PyType -> Maybe Integer
+fromPyTypeInt (PyType (enc :: t)) = do
+  Refl <- eqT @t @Integer
+  return enc
+
+fromPyTypeFloat :: PyType -> Maybe Double
+fromPyTypeFloat (PyType (enc :: t)) = do
+  Refl <- eqT @t @Double
+  return enc
+
+fromPyTypeStr :: PyType -> Maybe String
+fromPyTypeStr (PyType (enc :: t)) = do
+  Refl <- eqT @t @String
+  return enc
+
 data RetyperEnvironment = RetEnvStmt
-                        {
-                           oldStmts :: StatementParse
-                        ,  varsMap :: Map.Map String PyType
+                        { oldStmt :: StatementParse
+                        , varsMap :: Map.Map String PyType
                         }
                         | RetEnvExpr
-                        {
-                           oldExprs :: ExprParse
-                        ,  varsMap :: Map.Map String PyType
+                        { oldExpr :: ExprParse
+                        , varsMap :: Map.Map String PyType
                         }
 
 type RetyperMonad a = State RetyperEnvironment a
 
-class IStatement stmt where
-  iAssign    :: IExpr stmt => String -> stmt t -> stmt ()
-  iProcedure :: IExpr stmt => stmt t -> stmt ()
-  iNextStmt :: stmt () -> stmt () -> stmt ()
-
-class IExpr expr where
-  iPlus :: expr Int -> expr Int -> expr Int
-  iIntVal :: Int -> expr Int
-  iBrackets :: expr t -> expr t
-
-class (IStatement p, IExpr p) => IPyScript p 
-
 data Encaps stmt where
   Encaps :: (IExpr expr, IPyType t) => expr t -> Encaps expr
 
-fromEncapsInt :: Encaps expr -> Maybe (expr Int)
+fromEncapsInt :: Encaps expr -> Maybe (expr Integer)
 fromEncapsInt (Encaps (enc :: expr t)) = do
-  Refl <- eqT @t @Int
+  Refl <- eqT @t @Integer
+  return enc
+
+fromEncapsFloat :: Encaps expr -> Maybe (expr Double)
+fromEncapsFloat (Encaps (enc :: expr t)) = do
+  Refl <- eqT @t @Double
+  return enc
+
+fromEncapsStr :: Encaps expr -> Maybe (expr String)
+fromEncapsStr (Encaps (enc :: expr t)) = do
+  Refl <- eqT @t @String
   return enc
 
 exprRetyper :: IPyScript expr => RetyperMonad (Encaps expr)
-exprRetyper = StateT $ \env ->
-  case env of 
-    RetEnvExpr old mp ->
-      case old of
-        BinOpWT a1 token a2 ->
-          let 
-            (enc1, env1) = runState exprRetyper $ RetEnvExpr a1 mp
-            (enc2, env2) = runState exprRetyper $ RetEnvExpr a2 mp
-            r1 = fromEncapsInt enc1
-            r2 = fromEncapsInt enc2
-          in
-            case (r1, r2, content token) of
-              (Just j1, Just j2, "+") -> return (Encaps $ iPlus j1 j2, env)
-        AtomWT token ->
-          case token of
-            TInt _ _ value -> return (Encaps $ iIntVal value, env)
+exprRetyper = StateT $ \env@(RetEnvExpr old mp) ->
+  case old of
+    BinOpWT a1 token a2 ->
+      let 
+        (enc1, _) = runState exprRetyper $ RetEnvExpr a1 mp
+        (enc2, _) = runState exprRetyper $ RetEnvExpr a2 mp
+        int1 = fromEncapsInt enc1
+        int2 = fromEncapsInt enc2
+        float1 = fromEncapsFloat enc1
+        float2 = fromEncapsFloat enc2
+        str1 = fromEncapsStr enc1
+        str2 = fromEncapsStr enc2
+      in case content token of
+        ("+") -> case (int1, int2, float1, float2, str1, str2) of
+          (Just j1, Just j2, _, _, _, _) -> return (Encaps $ iPlus j1 j2, env)
+          (Just j1, _, _, Just j2, _, _) -> return (Encaps $ iPlus (iHidCastIntFloat j1) j2, env)
+          (_, Just j2, Just j1, _, _, _) -> return (Encaps $ iPlus j1 (iHidCastIntFloat j2), env)
+          (_, _, Just j1, Just j2, _, _) -> return (Encaps $ iPlus j1 j2, env)
+          (_, _, _, _, Just j1, Just j2) -> return (Encaps $ iStrPlus j1 j2, env)
+        ("-") -> case (int1, int2, float1, float2) of
+          (Just j1, Just j2, _, _) -> return (Encaps $ iMinus j1 j2, env)
+          (Just j1, _, _, Just j2) -> return (Encaps $ iMinus (iHidCastIntFloat j1) j2, env)
+          (_, Just j2, Just j1, _) -> return (Encaps $ iMinus j1 (iHidCastIntFloat j2), env)
+          (_, _, Just j1, Just j2) -> return (Encaps $ iMinus j1 j2, env)
+        ("*") -> case (int1, int2, float1, float2) of
+          (Just j1, Just j2, _, _) -> return (Encaps $ iMult j1 j2, env)
+          (Just j1, _, _, Just j2) -> return (Encaps $ iMult (iHidCastIntFloat j1) j2, env)
+          (_, Just j2, Just j1, _) -> return (Encaps $ iMult j1 (iHidCastIntFloat j2), env)
+          (_, _, Just j1, Just j2) -> return (Encaps $ iMult j1 j2, env)
+
+    InputWT -> return (Encaps iInput, env)
+
+    AtomWT token ->
+      case token of
+        TString  _ _ value -> return (Encaps $ iVal value, env)
+        TInteger _ _ value -> return (Encaps $ iVal value, env)
+        TFloat   _ _ value -> return (Encaps $ iVal value, env)
+        TBool    _ _ value -> return (Encaps $ iVal value, env)
+        TVariable _ _ name ->
+          case mp Map.!? name of
+            Just enc ->
+              let
+                int = fromPyTypeInt enc
+                float = fromPyTypeFloat enc
+                str = fromPyTypeStr enc
+              in case (int, float, str) of
+                (Just _, _, _) -> return (Encaps $ iVarInt name, env)
+                (_, Just _, _) -> return (Encaps $ iVarFloat name, env)
+                (_, _, Just _) -> return (Encaps $ iVarStr name, env)
+
+
+
+
 
 stmtRetyper :: IPyScript stmt => RetyperMonad (stmt ())
-stmtRetyper = StateT $ \env ->
-  case env of
-    RetEnvStmt old mp ->
-      case old of
-        (ProcedureWT a) ->
-          let
-            (enc, env) = runState exprRetyper $ RetEnvExpr a mp
-            r = fromEncapsInt
-          in
-            case enc of
-              Encaps j -> return (iProcedure j, env)
+stmtRetyper = StateT $ \env@(RetEnvStmt old mp) ->
+  case old of
+    AssignWT token@(TVariable _ _ name) a ->
+      let
+        (enc, _) = runState exprRetyper $ RetEnvExpr a mp
+        int = fromEncapsInt enc
+        float = fromEncapsFloat enc
+        str = fromEncapsStr enc
+      in
+        case (int, float, str) of
+          (Just j, _, _) -> return (iAssign name j, RetEnvStmt old $ Map.insert name (PyType (0 :: Integer)) mp)
+          (_, Just j, _) -> return (iAssign name j, RetEnvStmt old $ Map.insert name (PyType (0 :: Double)) mp)
+          (_, _, Just j) -> return (iAssign name j, RetEnvStmt old $ Map.insert name (PyType ("" :: String)) mp)
 
-newtype ToS a = ToS {toString :: String}
-  deriving (Show, Semigroup)
+    ProcedureWT a ->
+      let 
+        (enc, _) = runState exprRetyper $ RetEnvExpr a mp
+      in
+        case enc of
+          Encaps j -> return (iProcedure j, env)
 
-castTS :: ToS a -> ToS b
-castTS (ToS s) = ToS s
+    PrintWT a -> 
+      let
+        (enc, _) = runState exprRetyper $ RetEnvExpr a mp
+      in 
+        case enc of
+          Encaps j -> return (iPrint j, env)
 
-instance IStatement ToS where
-  iAssign a b = (castTS $ ToS a) <> (ToS " = ") <> castTS b
-  iProcedure = castTS
+    StmtPrsSeq a b ->
+      let
+        (r1, RetEnvStmt _ mp1) = runState stmtRetyper $ RetEnvStmt a mp
+        (r2, env2) = runState stmtRetyper $ RetEnvStmt b mp1
+      in return (iNextStmt r1 r2, env2)
 
-instance IExpr ToS where
-  iPlus a b = a <> (ToS " + ") <> b
-  iIntVal   = ToS . show
-  iBrackets a = (ToS "( ") <> a <> (ToS " )")
-
-instance IPyScript ToS
-
-main = do
-  inh <- openFile "py.py" ReadMode
-  contents <- hGetContents inh
-  case parse contents of
-    Left s -> putStrLn s
-    Right statements ->
-      let (pyscript, env) = runState stmtRetyper $ RetEnvStmt {oldStmts = statements, varsMap = Map.empty}
-      in do
-        putStrLn $ toString pyscript
+tfParse :: IPyScript p => String -> Either String (p ())
+tfParse string = case parse string of
+  Left s -> Left s
+  Right statements ->
+    let (pyscript, env) = runState stmtRetyper $ 
+                            RetEnvStmt {oldStmt = statements, varsMap = Map.empty}
+    in Right pyscript 

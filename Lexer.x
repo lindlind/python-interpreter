@@ -2,16 +2,15 @@
 module Lexer where
 
 import Data.List.Split
-import Control.Monad.State.Strict
-import qualified Data.Map.Strict as Map
 }
 
-%wrapper "monad"
+%wrapper "monadUserState"
 
 $digit = [0-9]
 $alpha = [A-Za-z]
 $newline = \n
 
+@tab = \^([ ])*
 @onelineComment = "#".*$newline
 @multilineCommentContent' = (.{1,2}|[^\']{3})*
 
@@ -26,8 +25,11 @@ $newline = \n
 @float = ( ([0-9]*\.[0-9]+) | ([0-9]+\.) )
 @variable = $alpha [$alpha $digit \_]*
 
+@comp = "=="|"!="|"<="|">="|"<"|">"
+
 tokens :-
 <0>                     $newline                        { makeToken LNewline }
+<0>                     @tab                            { makeToken LTab }
 <0>                     $white                          ;
 
 
@@ -43,6 +45,15 @@ tokens :-
 <mutlilineCommentSC''>  \"\"\"                          { begin 0 }
 
 <0>                     @type                           { makeToken LType }
+<0>                     "input"                         { makeToken LInput }
+<0>                     "print"                         { makeToken LPrint }
+<0>                     "while"                         { makeToken LWhile }
+<0>                     "if"                            { makeToken LIf }
+<0>                     "elif"                          { makeToken LElif }
+<0>                     "else"                          { makeToken LElse }
+<0>                     "return"                        { makeToken LReturn }
+<0>                     "break"                         { makeToken LBreak }
+<0>                     "continue"                      { makeToken LContinue }
 <0>                     @boolean                        { makeToken LBool }
 
 <0>                     \'                              { begin stringSC' }
@@ -53,7 +64,7 @@ tokens :-
 <stringSC''>            \"                              { begin 0 }
 
 <0>                     @scientific                     { makeToken LFloat }
-<0>                     @integer                        { makeToken LInt }
+<0>                     @integer                        { makeToken LInteger }
 <0>                     @float                          { makeToken LFloat }
 <0>                     ","                             { makeToken LComma }
 <0>                     "("                             { makeToken LOpenBracket }
@@ -64,12 +75,7 @@ tokens :-
 <0>                     "or"                            { makeToken LOr }
 <0>                     "and"                           { makeToken LAnd }
 <0>                     "not"                           { makeToken LNot }
-<0>                     "<"                             { makeToken LLT }
-<0>                     ">"                             { makeToken LGT }
-<0>                     "=="                            { makeToken LEq }
-<0>                     "!="                            { makeToken LNEq }
-<0>                     "<="                            { makeToken LLTE }
-<0>                     ">="                            { makeToken LGTE }
+<0>                     @comp                           { makeToken LComp }
 <0>                     "|"                             { makeToken LBitOr }
 <0>                     "^"                             { makeToken LBitXor }
 <0>                     "&"                             { makeToken LBitAnd }
@@ -87,12 +93,22 @@ tokens :-
 
 {
 
-data Lexeme 
+data Lexeme
   = LNewline
+  | LTab
   | LType
+  | LInput
+  | LPrint
+  | LWhile
+  | LIf
+  | LElif
+  | LElse
+  | LReturn
+  | LBreak
+  | LContinue
   | LBool
   | LString
-  | LInt
+  | LInteger
   | LFloat
   | LVariable
   | LComma
@@ -105,12 +121,7 @@ data Lexeme
   | LOr
   | LAnd
   | LNot
-  | LLT
-  | LGT
-  | LEq
-  | LNEq
-  | LLTE
-  | LGTE
+  | LComp
   | LBitOr
   | LBitXor
   | LBitAnd
@@ -126,34 +137,60 @@ data Lexeme
   | LSlice
   deriving (Eq, Show)
 
-readFloat :: String -> Float
-readFloat s = 
-  case 
-    splitOn "." s 
+readFloat :: String -> Double
+readFloat s =
+  case
+    splitOn "." s
   of
-    s : [] -> (read s) :: Float
-    int : rest : [] -> 
-      case 
-        splitOneOf "eE" rest 
+    s : [] -> (read s) :: Double
+    int : rest : [] ->
+      case
+        splitOneOf "eE" rest
       of
-        r : []       -> (read ("0" ++ int ++ "." ++ r ++ "0"        )) :: Float
-        r : exp : [] -> (read ("0" ++ int ++ "." ++ r ++ "0e" ++ exp)) :: Float
+        r : []       -> (read ("0" ++ int ++ "." ++ r ++ "0"        )) :: Double
+        r : exp : [] -> (read ("0" ++ int ++ "." ++ r ++ "0e" ++ exp)) :: Double
 
+lexIndentError :: AlexPosn -> String
+lexIndentError (AlexPn _ line _) = "lexical indentation error at line " ++ (show line)
 
 makeToken :: Lexeme -> AlexInput -> Int -> Alex Token
-makeToken lexeme (pos, _, _, str) len = 
-  let token = take len str
+makeToken lexeme (pos, _, _, str) len =
+  let 
+    token = take len str
+    (AlexPn _ line column) = pos
   in case lexeme of
+    LTab -> 
+      if len `mod` 4 == 0
+        then do
+          let curIndent = len `div` 4
+          prevIndent <- getPrevIndent
+          setPrevIndent curIndent
+          case curIndent - prevIndent of
+            ( 1) ->     return (TIndent      "<indent>" pos)
+            ( 0) -> alexMonadScan
+            (-1) ->     return (TDedent      "<dedent>" pos)
+            _    -> alexError $ lexIndentError pos
+        else alexError $ lexIndentError pos
+
     LNewline ->         return (TNewline          token pos)
     LType ->            return (TType             token pos token)
+    LInput ->           return (TInput            token pos)
+    LPrint ->           return (TPrint            token pos)
+    LWhile ->           return (TWhile            token pos)
+    LIf ->              return (TIf               token pos)
+    LElif ->            return (TElif             token pos)
+    LElse ->            return (TElse             token pos)
+    LReturn ->          return (TReturn           token pos)
+    LBreak ->           return (TBreak            token pos)
+    LContinue ->        return (TContinue         token pos)
     LBool ->            return (TBool             token pos $
                                                     case token of
                                                       "True" -> True
                                                       "False" -> False
                                                   )
     LString ->          return (TString           token pos token)
-    LInt ->             return (TInt              token pos $
-                                                    ((read token) :: Int)
+    LInteger ->         return (TInteger          token pos $
+                                                    ((read token) :: Integer)
                                                   )
     LFloat ->           return (TFloat            token pos $
                                                     readFloat token
@@ -169,12 +206,7 @@ makeToken lexeme (pos, _, _, str) len =
     LOr ->              return (TOr               token pos)
     LAnd ->             return (TAnd              token pos)
     LNot ->             return (TNot              token pos)
-    LLT ->              return (TLT               token pos)
-    LGT ->              return (TGT               token pos)
-    LEq ->              return (TEq               token pos)
-    LNEq ->             return (TNEq              token pos)
-    LLTE ->             return (TLTE              token pos)
-    LGTE ->             return (TGTE              token pos)
+    LComp ->            return (TComp             token pos token)
     LBitOr ->           return (TBitOr            token pos)
     LBitXor ->          return (TBitXor           token pos)
     LBitAnd ->          return (TBitAnd           token pos)
@@ -189,16 +221,24 @@ makeToken lexeme (pos, _, _, str) len =
     LFloatDiv ->        return (TFloatDiv         token pos)
     LSlice ->           return (TSlice            token pos)
 
-alexEOF :: Alex Token
-alexEOF = return TEof
-
 data Token
   = TNewline         { content :: String, position :: AlexPosn }
+  | TIndent          { content :: String, position :: AlexPosn }
+  | TDedent          { content :: String, position :: AlexPosn }
   | TType            { content :: String, position :: AlexPosn, name :: String }
+  | TInput           { content :: String, position :: AlexPosn }
+  | TPrint           { content :: String, position :: AlexPosn }
+  | TWhile           { content :: String, position :: AlexPosn }
+  | TIf              { content :: String, position :: AlexPosn }
+  | TElif            { content :: String, position :: AlexPosn }
+  | TElse            { content :: String, position :: AlexPosn }
+  | TReturn          { content :: String, position :: AlexPosn }
+  | TBreak           { content :: String, position :: AlexPosn }
+  | TContinue        { content :: String, position :: AlexPosn }
   | TBool            { content :: String, position :: AlexPosn, bValue :: Bool }
   | TString          { content :: String, position :: AlexPosn, sValue :: String }
-  | TInt             { content :: String, position :: AlexPosn, iValue :: Int }
-  | TFloat           { content :: String, position :: AlexPosn, fValue :: Float }
+  | TInteger         { content :: String, position :: AlexPosn, iValue :: Integer }
+  | TFloat           { content :: String, position :: AlexPosn, fValue :: Double }
   | TVariable        { content :: String, position :: AlexPosn, name :: String }
   | TComma           { content :: String, position :: AlexPosn }
   | TDot             { content :: String, position :: AlexPosn }
@@ -210,12 +250,7 @@ data Token
   | TOr              { content :: String, position :: AlexPosn }
   | TAnd             { content :: String, position :: AlexPosn }
   | TNot             { content :: String, position :: AlexPosn }
-  | TLT              { content :: String, position :: AlexPosn }
-  | TGT              { content :: String, position :: AlexPosn }
-  | TEq              { content :: String, position :: AlexPosn }
-  | TNEq             { content :: String, position :: AlexPosn }
-  | TLTE             { content :: String, position :: AlexPosn }
-  | TGTE             { content :: String, position :: AlexPosn }
+  | TComp            { content :: String, position :: AlexPosn, op :: String }
   | TBitOr           { content :: String, position :: AlexPosn }
   | TBitXor          { content :: String, position :: AlexPosn }
   | TBitAnd          { content :: String, position :: AlexPosn }
@@ -231,5 +266,22 @@ data Token
   | TSlice           { content :: String, position :: AlexPosn }
   | TEof
   deriving (Eq, Show)
+
+-- AlexUserState monadic requirements
+
+alexEOF :: Alex Token
+alexEOF = return TEof
+
+data AlexUserState = AlexUserState { prevIndent :: Int }
+
+alexInitUserState :: AlexUserState
+alexInitUserState = AlexUserState { prevIndent = 0 }
+
+getPrevIndent :: Alex Int
+getPrevIndent = Alex $ \s@AlexState{alex_ust=ust} -> Right (s, prevIndent ust)
+
+setPrevIndent :: Int -> Alex ()
+setPrevIndent indent = Alex $ \s -> Right (s{alex_ust=(alex_ust s){prevIndent=indent}}, ())
+
 
 }

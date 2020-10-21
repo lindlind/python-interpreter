@@ -11,10 +11,21 @@ import Lexer
 %tokentype {Token}
 %token
   NEWLINE       { TNewline          _ _ }
+  INDENT        { TIndent           _ _ }
+  DEDENT        { TDedent           _ _ }
   TYPE          { TType             _ _ name }
+  INPUT         { TInput            _ _ }
+  PRINT         { TPrint            _ _ }
+  WHILE         { TWhile            _ _ }
+  IF            { TIf               _ _ }
+  ELIF          { TElif             _ _ }
+  ELSE          { TElse             _ _ }
+  RETURN        { TReturn           _ _ }
+  BREAK         { TBreak            _ _ }
+  CONTINUE      { TContinue         _ _ }
   BOOL          { TBool             _ _ bValue }
   STR           { TString           _ _ sValue }
-  INT           { TInt              _ _ iValue }
+  INT           { TInteger          _ _ iValue }
   FLOAT         { TFloat            _ _ fValue }
   VAR           { TVariable         _ _ name }
   ","           { TComma            _ _ }
@@ -27,12 +38,7 @@ import Lexer
   "or"          { TOr               _ _ }
   "and"         { TAnd              _ _ }
   "not"         { TNot              _ _ }
-  "<"           { TLT               _ _ }
-  ">"           { TGT               _ _ }
-  "=="          { TEq               _ _ }
-  "!="          { TNEq              _ _ }
-  "<="          { TLTE              _ _ }
-  ">="          { TGTE              _ _ }
+  COMP          { TComp             _ _ op }
   "|"           { TBitOr            _ _ }
   "^"           { TBitXor           _ _ }
   "&"           { TBitAnd           _ _ }
@@ -65,15 +71,45 @@ Newlines
 Statement :: {StatementParse}
 Statement
   : SmallStatement                                       { $1 }
---  | CompoundStatement                                    
+  | CompoundStatement                                    { $1 }
+
+CompoundStatement :: {StatementParse}
+CompoundStatement
+  : IfStatement                                          { $1 }
+  | WhileStatement                                       { $1 }
+--  | FunctionDef                                          { $1 }
+
+WhileStatement :: {StatementParse}
+WhileStatement
+    : WHILE Expr ":" Block                               { WhileWT $2 $4 }
+
+IfStatement :: {StatementParse}
+IfStatement
+    : IF Expr ":" Block                                  { IfWT $2 $4 }
+    | IF Expr ":" Block ElifStatement                    { IfElseWT $2 $4 $5 }
+    | IF Expr ":" Block ElseStatement                    { IfElseWT $2 $4 $5 }
+
+ElifStatement :: {StatementParse}
+ElifStatement
+    : ELIF Expr ":" Block                                { IfWT $2 $4 }
+    | ELIF Expr ":" Block ElifStatement                  { IfElseWT $2 $4 $5 }
+    | ELIF Expr ":" Block ElseStatement                  { IfElseWT $2 $4 $5 }
+
+ElseStatement :: {StatementParse}
+ElseStatement
+    : ELSE ":" Block                                     { $3 }
+
+Block :: {StatementParse}
+Block
+    : NEWLINE INDENT Statements DEDENT                   { $3 }
 
 SmallStatement :: {StatementParse}
   : Procedure                                            { $1 }
   | Assignment                                           { $1 }
---  | Return
---  | 'pass'
---  | 'break'
---  | 'continue'
+  | Print                                                { $1 }
+--  | Return                                               { $1 }
+  | BREAK                                                { BreakWT }
+  | CONTINUE                                             { ContinueWT }
 
 Assignment :: {StatementParse}
 Assignment
@@ -82,6 +118,10 @@ Assignment
 Procedure :: {StatementParse}
 Procedure
   : Expr                                                 { ProcedureWT $1 }
+
+Print :: {StatementParse}
+Print
+  : PRINT "(" Expr ")"                                   { PrintWT $3 }
 
 Exprs :: {[ExprParse]}
 Exprs
@@ -109,12 +149,7 @@ Inv
 
 Comp :: {ExprParse}
 Comp
-  : BitwiseOr "==" BitwiseOr                             { BinOpWT $1 $2 $3 }
-  | BitwiseOr "!=" BitwiseOr                             { BinOpWT $1 $2 $3 }
-  | BitwiseOr "<" BitwiseOr                              { BinOpWT $1 $2 $3 }
-  | BitwiseOr ">" BitwiseOr                              { BinOpWT $1 $2 $3 }
-  | BitwiseOr "<=" BitwiseOr                             { BinOpWT $1 $2 $3 }
-  | BitwiseOr ">=" BitwiseOr                             { BinOpWT $1 $2 $3 }
+  : BitwiseOr COMP BitwiseOr                             { BinOpWT $1 $2 $3 }
   | BitwiseOr                                            { $1 }
 
 BitwiseOr :: {ExprParse}
@@ -186,6 +221,7 @@ Atom
   | BOOL                                                 { AtomWT $1 }
   | STR                                                  { AtomWT $1 }
   | VAR                                                  { AtomWT $1 }
+  | INPUT "(" ")"                                        { InputWT }
   | "(" Expr ")"                                         { RecWT $2 }
 
 
@@ -195,6 +231,12 @@ lexer = (alexMonadScan >>=)
 
 data StatementParse = AssignWT Token ExprParse
                     | ProcedureWT ExprParse
+                    | PrintWT ExprParse
+                    | WhileWT ExprParse StatementParse
+                    | IfWT ExprParse StatementParse
+                    | IfElseWT ExprParse StatementParse StatementParse
+                    | BreakWT
+                    | ContinueWT
                     | StmtPrsSeq StatementParse StatementParse
                     | EmptySeq
                     deriving (Eq, Show)
@@ -204,9 +246,9 @@ data ExprParse = BinOpWT ExprParse Token ExprParse
                | FuncWT ExprParse [ExprParse]
                | SliceWT ExprParse [ExprParse]
                | AtomWT Token
+               | InputWT
                | RecWT ExprParse
                deriving (Eq, Show)
-
 
 parseError :: Token -> Alex a
 parseError token =
