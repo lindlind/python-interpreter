@@ -24,9 +24,9 @@ import Lexer
   BREAK         { TBreak            _ _ }
   CONTINUE      { TContinue         _ _ }
   BOOL          { TBool             _ _ bValue }
-  STR           { TString           _ _ sValue }
   INT           { TInteger          _ _ iValue }
   FLOAT         { TFloat            _ _ fValue }
+  STR           { TString           _ _ sValue }
   VAR           { TVariable         _ _ name }
   ","           { TComma            _ _ }
   "."           { TDot              _ _ }
@@ -56,52 +56,48 @@ import Lexer
 %%
 Code :: {StatementParse}
 Code
-  : Newlines Statements                                  { $2 }
-  | Newlines                                             { EmptySeq }
+  : Statements                                           { $1 }
+  |                                                      { EmptySeq }
 
 Statements :: {StatementParse}
 Statements
-  : Statement NEWLINE Newlines Statements                { $1 `StmtPrsSeq` $4 }
-  | Statement Newlines                                   { $1 }
-
-Newlines
-  : NEWLINE Newlines                                     { }
-  |                                                      { }
+  : Statement Statements                                 { $1 `StmtPrsSeq` $2 }
+  | Statement                                            { $1 }
 
 Statement :: {StatementParse}
 Statement
-  : SmallStatement                                       { $1 }
+  : SmallStatement NEWLINE                               { $1 }
   | CompoundStatement                                    { $1 }
 
 CompoundStatement :: {StatementParse}
 CompoundStatement
   : IfStatement                                          { $1 }
   | WhileStatement                                       { $1 }
---  | FunctionDef                                          { $1 }
+--  | FunctionDef                                        { $1 }
 
 WhileStatement :: {StatementParse}
 WhileStatement
-    : WHILE Expr ":" Block                               { WhileWT $2 $4 }
+  : WHILE Expr ":" Block                                 { WhileWT $2 $4 }
 
 IfStatement :: {StatementParse}
 IfStatement
-    : IF Expr ":" Block                                  { IfWT $2 $4 }
-    | IF Expr ":" Block ElifStatement                    { IfElseWT $2 $4 $5 }
-    | IF Expr ":" Block ElseStatement                    { IfElseWT $2 $4 $5 }
+  : IF Expr ":" Block                                    { IfWT $2 $4 }
+  | IF Expr ":" Block ElifStatement                      { IfElseWT $2 $4 $5 }
+  | IF Expr ":" Block ElseStatement                      { IfElseWT $2 $4 $5 }
 
 ElifStatement :: {StatementParse}
 ElifStatement
-    : ELIF Expr ":" Block                                { IfWT $2 $4 }
-    | ELIF Expr ":" Block ElifStatement                  { IfElseWT $2 $4 $5 }
-    | ELIF Expr ":" Block ElseStatement                  { IfElseWT $2 $4 $5 }
+  : ELIF Expr ":" Block                                  { IfWT $2 $4 }
+  | ELIF Expr ":" Block ElifStatement                    { IfElseWT $2 $4 $5 }
+  | ELIF Expr ":" Block ElseStatement                    { IfElseWT $2 $4 $5 }
 
 ElseStatement :: {StatementParse}
 ElseStatement
-    : ELSE ":" Block                                     { $3 }
+  : ELSE ":" Block                                       { $3 }
 
 Block :: {StatementParse}
 Block
-    : NEWLINE INDENT Statements DEDENT                   { $3 }
+  : NEWLINE INDENT Statements DEDENT                     { $3 } -- problem with multiple dedents
 
 SmallStatement :: {StatementParse}
   : Procedure                                            { $1 }
@@ -200,6 +196,9 @@ Power
 
 Primary :: {ExprParse}
   : Atom                                                 { $1 }
+  | INPUT "(" ")"                                        { InputWT }
+  | "(" Expr ")"                                         { RecWT $2 }
+  | TYPE "(" Expr ")"                                    { CastWT $1 $3 }
 --  | Primary "(" Arguments ")"                            { FuncWT $1 $3 }
 --  | Primary "[" Slices "]"                               { SliceWT $1 $3 }
 
@@ -216,25 +215,23 @@ Slices
 
 Atom :: {ExprParse}
 Atom
-  : INT                                                  { AtomWT $1 }
+  : BOOL                                                 { AtomWT $1 }
+  | INT                                                  { AtomWT $1 }
   | FLOAT                                                { AtomWT $1 }
-  | BOOL                                                 { AtomWT $1 }
   | STR                                                  { AtomWT $1 }
   | VAR                                                  { AtomWT $1 }
-  | INPUT "(" ")"                                        { InputWT }
-  | "(" Expr ")"                                         { RecWT $2 }
 
 
 {
 
 lexer = (alexMonadScan >>=)
 
-data StatementParse = AssignWT Token ExprParse
-                    | ProcedureWT ExprParse
-                    | PrintWT ExprParse
-                    | WhileWT ExprParse StatementParse
-                    | IfWT ExprParse StatementParse
+data StatementParse = IfWT ExprParse StatementParse
                     | IfElseWT ExprParse StatementParse StatementParse
+                    | WhileWT ExprParse StatementParse
+                    | ProcedureWT ExprParse
+                    | AssignWT Token ExprParse
+                    | PrintWT ExprParse
                     | BreakWT
                     | ContinueWT
                     | StmtPrsSeq StatementParse StatementParse
@@ -243,6 +240,7 @@ data StatementParse = AssignWT Token ExprParse
 
 data ExprParse = BinOpWT ExprParse Token ExprParse
                | UnOpWT Token ExprParse
+               | CastWT Token ExprParse
                | FuncWT ExprParse [ExprParse]
                | SliceWT ExprParse [ExprParse]
                | AtomWT Token

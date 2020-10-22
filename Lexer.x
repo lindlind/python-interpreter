@@ -10,7 +10,8 @@ $digit = [0-9]
 $alpha = [A-Za-z]
 $newline = \n
 
-@tab = \^([ ])*
+@spaces = (\ )+
+@maybespaces = (\ )*
 @onelineComment = "#".*$newline
 @multilineCommentContent' = (.{1,2}|[^\']{3})*
 
@@ -28,10 +29,11 @@ $newline = \n
 @comp = "=="|"!="|"<="|">="|"<"|">"
 
 tokens :-
-<0>                     $newline                        { makeToken LNewline }
-<0>                     @tab                            { makeToken LTab }
+<0>                     $newline                        { makeToken LNewline `andBegin` startLine}
+<startLine>            ^$white*\n                       ;
+<0>                    ^@spaces                         { makeToken LTab }
+<startLine>            ^@maybespaces                    { makeToken LTab  `andBegin` 0}
 <0>                     $white                          ;
-
 
 <0>                     "#"                             { begin onelineCommentSC }
 <onelineCommentSC>      .                               ;
@@ -165,7 +167,7 @@ makeToken lexeme (pos, _, _, str) len =
           let curIndent = len `div` 4
           prevIndent <- getPrevIndent
           setPrevIndent curIndent
-          case curIndent - prevIndent of
+          case (curIndent - prevIndent) of
             ( 1) ->     return (TIndent      "<indent>" pos)
             ( 0) -> alexMonadScan
             (-1) ->     return (TDedent      "<dedent>" pos)
@@ -236,9 +238,9 @@ data Token
   | TBreak           { content :: String, position :: AlexPosn }
   | TContinue        { content :: String, position :: AlexPosn }
   | TBool            { content :: String, position :: AlexPosn, bValue :: Bool }
-  | TString          { content :: String, position :: AlexPosn, sValue :: String }
   | TInteger         { content :: String, position :: AlexPosn, iValue :: Integer }
   | TFloat           { content :: String, position :: AlexPosn, fValue :: Double }
+  | TString          { content :: String, position :: AlexPosn, sValue :: String }
   | TVariable        { content :: String, position :: AlexPosn, name :: String }
   | TComma           { content :: String, position :: AlexPosn }
   | TDot             { content :: String, position :: AlexPosn }
