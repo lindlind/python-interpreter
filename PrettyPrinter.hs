@@ -47,20 +47,11 @@ newlinePrinter = do
   let tabs = concat $ replicate (indent env) "  "
   concatPrinter $ "\n" ++ tabs
 
+castPP :: (IPyType b) => PrettyPrinter a -> PrettyPrinter b
+castPP a = a >> return (def)
+
 castUnitPP :: PrettyPrinter a -> PrettyPrinter ()
 castUnitPP a = a >> return ()
-
-castStrPP :: PrettyPrinter a -> PrettyPrinter String
-castStrPP a = a >> return ""
-
-castIntPP :: PrettyPrinter a -> PrettyPrinter Integer
-castIntPP a = a >> return (0 :: Integer)
-
-castFloatPP :: PrettyPrinter a -> PrettyPrinter Double
-castFloatPP a = a >> return (0 :: Double)
-
-castBoolPP :: PrettyPrinter a -> PrettyPrinter Bool
-castBoolPP a = a >> return True
 
 --  iIf     :: (IExpr stmt) => stmt Bool -> stmt ()
 --  iIfElse :: (IExpr stmt) => stmt Bool -> stmt () -> stmt ()
@@ -68,40 +59,45 @@ castBoolPP a = a >> return True
 
 instance IStatement PrettyPrinter where
   iIf expr a = (concatPrinter "if ") >> expr >> (concatPrinter ":")
-            >> incIndentPrinter >> newlinePrinter 
+            >> incIndentPrinter >> newlinePrinter
             >> a >> decIndentPrinter
 
   iIfElse expr a b = (concatPrinter "if ") >> expr >> (concatPrinter ":")
-                  >> incIndentPrinter >> newlinePrinter 
-                  >> a >> decIndentPrinter >> newlinePrinter 
+                  >> incIndentPrinter >> newlinePrinter
+                  >> a >> decIndentPrinter >> newlinePrinter
                   >> (concatPrinter "else:")
-                  >> incIndentPrinter >> newlinePrinter 
-                  >> b >> decIndentPrinter 
+                  >> incIndentPrinter >> newlinePrinter
+                  >> b >> decIndentPrinter
 
   iWhile expr a = (concatPrinter "while ") >> expr >> (concatPrinter ":")
-               >> incIndentPrinter >> newlinePrinter 
+               >> incIndentPrinter >> newlinePrinter
                >> a >> decIndentPrinter
 
   iAssign s expr = castUnitPP $ (concatPrinter s) >> (concatPrinter " = ") >> expr
   iProcedure = castUnitPP
   iPrint a = (concatPrinter "print(") >> a >> (concatPrinter ")")
+  iBreak = (concatPrinter "break")
+  iContinue = (concatPrinter "continue")
   iNextStmt a b = a >> newlinePrinter >> b
 
 instance IExpr PrettyPrinter where
   iOr  a b = a >> (concatPrinter " or ") >> b
   iAnd a b = a >> (concatPrinter " and ") >> b
   iNot = (>>) $ concatPrinter "not "
-  iEq  a b = castBoolPP $ a >> (concatPrinter " == ") >> b
-  iNEq a b = castBoolPP $ a >> (concatPrinter " != ") >> b
-  iLT  a b = castBoolPP $ a >> (concatPrinter " < ")  >> b
-  iGT  a b = castBoolPP $ a >> (concatPrinter " > ")  >> b
-  iLTE a b = castBoolPP $ a >> (concatPrinter " <= ") >> b
-  iGTE a b = castBoolPP $ a >> (concatPrinter " >= ") >> b
+
+  iEq  a b = castPP $ a >> (concatPrinter " == ") >> b
+  iNEq a b = castPP $ a >> (concatPrinter " != ") >> b
+  iLT  a b = castPP $ a >> (concatPrinter " < ")  >> b
+  iGT  a b = castPP $ a >> (concatPrinter " > ")  >> b
+  iLTE a b = castPP $ a >> (concatPrinter " <= ") >> b
+  iGTE a b = castPP $ a >> (concatPrinter " >= ") >> b
+
   iBitOr  a b = a >> (concatPrinter " | ") >> b
   iBitXor a b = a >> (concatPrinter " ^ ") >> b
   iBitAnd a b = a >> (concatPrinter " & ") >> b
   iLeftShift  a b = a >> (concatPrinter " << ") >> b
   iRightShift a b = a >> (concatPrinter " >> ") >> b
+
   iPlus     a b = a >> (concatPrinter " + ")  >> b
   iMinus    a b = a >> (concatPrinter " - ")  >> b
   iMult     a b = a >> (concatPrinter " * ")  >> b
@@ -111,21 +107,20 @@ instance IExpr PrettyPrinter where
   iPow      a b = a >> (concatPrinter "**")   >> b
   iUnarPlus  = (>>) $ concatPrinter "+"
   iUnarMinus = (>>) $ concatPrinter "-"
+
   iStrPlus a b = a >> (concatPrinter " + ") >> b
-  iInput = castStrPP $ concatPrinter "input()"
-  iValueStr   x = castStrPP   . concatPrinter . show $ x
-  iValueInt   x = castIntPP   . concatPrinter . show $ x
-  iValueFloat x = castFloatPP . concatPrinter . show $ x
-  iValueBool  x = castBoolPP  . concatPrinter . show $ x
-  iVarStr   s = castStrPP   . concatPrinter $ s
-  iVarInt   s = castIntPP   . concatPrinter $ s
-  iVarFloat s = castFloatPP . concatPrinter $ s
-  iVarBool  s = castBoolPP  . concatPrinter $ s
-  iCastStr   a = castStrPP   $ (concatPrinter "str")   >> iBrackets a
-  iCastInt   a = castIntPP   $ (concatPrinter "int")   >> iBrackets a
-  iCastFloat a = castFloatPP $ (concatPrinter "float") >> iBrackets a
-  iCastBool  a = castBoolPP  $ (concatPrinter "bool")  >> iBrackets a
-  iHidCastFloat = castFloatPP
+
+  iInput = castPP $ concatPrinter "input()"
+
+  iValue x = castPP . concatPrinter . show $ x
+  iVariable s = castPP . concatPrinter $ s
+
+  iCastStr   a = castPP $ (concatPrinter "str")   >> iBrackets a
+  iCastInt   a = castPP $ (concatPrinter "int")   >> iBrackets a
+  iCastFloat a = castPP $ (concatPrinter "float") >> iBrackets a
+  iCastBool  a = castPP $ (concatPrinter "bool")  >> iBrackets a
+  iHidCastFloat = castPP
+
   iBrackets a = (concatPrinter "( ") >> a >>= (concatPrinterSafeType " )")
 
 instance IPyScript PrettyPrinter

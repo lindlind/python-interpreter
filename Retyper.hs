@@ -16,7 +16,6 @@ import Control.Monad.State.Strict
 import qualified Data.Map.Strict as Map
 import Data.Typeable
 
-
 data MyException = TypeError String
 
 data PyType where
@@ -87,14 +86,14 @@ fromEncapsStr (Encaps (enc :: expr t)) = do
 -- fromEncapsPair :: (IExpr expr, IPyType a)
 --                   => (expr a -> expr a -> expr a)
 --                   -> Encaps expr -> Encaps expr -> Encaps expr
--- fromEncapsPair f (Encaps (e1 :: expr a)) (Encaps (e2 :: expr b)) = 
+-- fromEncapsPair f (Encaps (e1 :: expr a)) (Encaps (e2 :: expr b)) =
 --   case (eqT @a @b) of
 --     (Just _) -> Encaps $ f e1 e2
---     Nothing  -> case (gcast $ iHidCastFloat e1, gcast $ iHidCastFloat e2) of 
+--     Nothing  -> case (gcast $ iHidCastFloat e1, gcast $ iHidCastFloat e2) of
 --       (Just j1, Just j2) -> Encaps $ f j1 j2
 
 -- eqTypePair :: (IExpr expr, IPyType a, IPyType b) => expr a -> expr b -> Bool
--- eqTypePair ((e1 :: expr a)) ((e2 :: expr b)) = 
+-- eqTypePair ((e1 :: expr a)) ((e2 :: expr b)) =
 --   case (eqT @a @b) of
 --     (Just _) -> True
 --     Nothing  -> False
@@ -105,9 +104,21 @@ modifyEnvExpr newA env@RetEnvExpr{ oldExpr = a } = env { oldExpr = newA }
 modifyEnvStmt :: StatementParse -> RetyperEnvironment -> RetyperEnvironment
 modifyEnvStmt newA env@RetEnvStmt{ oldStmt = a } = env { oldStmt = newA }
 
-modifyEnvMap :: (Map.Map String PyType -> Map.Map String PyType) 
+modifyEnvMap :: (Map.Map String PyType -> Map.Map String PyType)
              -> RetyperEnvironment -> RetyperEnvironment
 modifyEnvMap f env@RetEnvStmt{ varsMap = rs } = env { varsMap = f rs }
+
+retypeVarStr :: IPyScript expr => String -> expr String
+retypeVarStr name = iVariable name
+
+retypeVarInt :: IPyScript expr => String -> expr Integer
+retypeVarInt name = iVariable name
+
+retypeVarFloat :: IPyScript expr => String -> expr Double
+retypeVarFloat name = iVariable name
+
+retypeVarBool :: IPyScript expr => String -> expr Bool
+retypeVarBool name = iVariable name
 
 exprRetyper :: IPyScript expr => RetyperMonad (Encaps expr)
 exprRetyper = do
@@ -204,7 +215,7 @@ exprRetyper = do
           (_, Just j2, Just j1, _) -> return (Encaps $ iMult j1 (iHidCastFloat j2))
           (_, _, Just j1, Just j2) -> return (Encaps $ iMult j1 j2)
         ("/") -> case (int1, int2, float1, float2) of
-          (Just j1, Just j2, _, _) -> return (Encaps $ iFloatDiv (iHidCastFloat j1) 
+          (Just j1, Just j2, _, _) -> return (Encaps $ iFloatDiv (iHidCastFloat j1)
                                                                  (iHidCastFloat j2)
                                                                  )
           (Just j1, _, _, Just j2) -> return (Encaps $ iFloatDiv (iHidCastFloat j1) j2)
@@ -215,7 +226,7 @@ exprRetyper = do
         ("%") -> case (int1, int2) of
           (Just j1, Just j2) -> return (Encaps $ iMod j1 j2)
         ("**") -> case (int1, int2, float1, float2) of
-          (Just j1, Just j2, _, _) -> return (Encaps $ iPow (iHidCastFloat j1) 
+          (Just j1, Just j2, _, _) -> return (Encaps $ iPow (iHidCastFloat j1)
                                                             (iHidCastFloat j2)
                                                             )
           (Just j1, _, _, Just j2) -> return (Encaps $ iPow (iHidCastFloat j1) j2)
@@ -271,10 +282,10 @@ exprRetyper = do
 
     AtomWT token ->
       case token of
-        TString  _ _ value -> return (Encaps $ iValueStr   value)
-        TInteger _ _ value -> return (Encaps $ iValueInt   value)
-        TFloat   _ _ value -> return (Encaps $ iValueFloat value)
-        TBool    _ _ value -> return (Encaps $ iValueBool  value)
+        TString  _ _ value -> return (Encaps $ iValue value)
+        TInteger _ _ value -> return (Encaps $ iValue value)
+        TFloat   _ _ value -> return (Encaps $ iValue value)
+        TBool    _ _ value -> return (Encaps $ iValue value)
         TVariable _ _ name -> do
           let enc = mp Map.! name
           let bool = fromPyTypeBool enc
@@ -282,10 +293,10 @@ exprRetyper = do
           let float = fromPyTypeFloat enc
           let str = fromPyTypeStr enc
           case (str, int, float, bool) of
-            (Just _, _, _, _) -> return (Encaps $ iVarStr   name)
-            (_, Just _, _, _) -> return (Encaps $ iVarInt   name)
-            (_, _, Just _, _) -> return (Encaps $ iVarFloat name)
-            (_, _, _, Just _) -> return (Encaps $ iVarBool  name)
+            (Just _, _, _, _) -> return (Encaps $ retypeVarStr name)
+            (_, Just _, _, _) -> return (Encaps $ retypeVarInt name)
+            (_, _, Just _, _) -> return (Encaps $ retypeVarFloat name)
+            (_, _, _, Just _) -> return (Encaps $ retypeVarBool name)
 
     RecWT a -> do
       modify $ modifyEnvExpr a
@@ -355,6 +366,10 @@ stmtRetyper = do
       case enc of
         Encaps j -> return (iPrint j)
 
+    BreakWT -> return iBreak
+
+    ContinueWT -> return iContinue
+
     StmtPrsSeq a b -> do
       modify $ modifyEnvStmt a
       r1 <- stmtRetyper
@@ -366,6 +381,6 @@ tfParse :: IPyScript p => String -> Either String (p ())
 tfParse string = case parse string of
   Left s -> Left s
   Right statements ->
-    let (pyscript, env) = runState stmtRetyper $ 
+    let (pyscript, env) = runState stmtRetyper $
            RetEnvStmt {oldStmt = statements, varsMap = Map.empty}
     in Right pyscript

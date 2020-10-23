@@ -157,11 +157,11 @@ lexIndentError (AlexPn _ line _) = "lexical indentation error at line " ++ (show
 
 makeToken :: Lexeme -> AlexInput -> Int -> Alex Token
 makeToken lexeme (pos, _, _, str) len =
-  let 
+  let
     token = take len str
     (AlexPn _ line column) = pos
   in case lexeme of
-    LTab -> 
+    LTab ->
       if len `mod` 4 == 0
         then do
           let curIndent = len `div` 4
@@ -237,10 +237,10 @@ data Token
   | TReturn          { content :: String, position :: AlexPosn }
   | TBreak           { content :: String, position :: AlexPosn }
   | TContinue        { content :: String, position :: AlexPosn }
-  | TBool            { content :: String, position :: AlexPosn, bValue :: Bool }
-  | TInteger         { content :: String, position :: AlexPosn, iValue :: Integer }
-  | TFloat           { content :: String, position :: AlexPosn, fValue :: Double }
-  | TString          { content :: String, position :: AlexPosn, sValue :: String }
+  | TBool            { content :: String, position :: AlexPosn, bVal :: Bool }
+  | TInteger         { content :: String, position :: AlexPosn, iVal :: Integer }
+  | TFloat           { content :: String, position :: AlexPosn, fVal :: Double }
+  | TString          { content :: String, position :: AlexPosn, sVal :: String }
   | TVariable        { content :: String, position :: AlexPosn, name :: String }
   | TComma           { content :: String, position :: AlexPosn }
   | TDot             { content :: String, position :: AlexPosn }

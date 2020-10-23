@@ -23,10 +23,10 @@ import Lexer
   RETURN        { TReturn           _ _ }
   BREAK         { TBreak            _ _ }
   CONTINUE      { TContinue         _ _ }
-  BOOL          { TBool             _ _ bValue }
-  INT           { TInteger          _ _ iValue }
-  FLOAT         { TFloat            _ _ fValue }
-  STR           { TString           _ _ sValue }
+  BOOL          { TBool             _ _ bVal }
+  INT           { TInteger          _ _ iVal }
+  FLOAT         { TFloat            _ _ fVal }
+  STR           { TString           _ _ sVal }
   VAR           { TVariable         _ _ name }
   ","           { TComma            _ _ }
   "."           { TDot              _ _ }
