@@ -53,6 +53,7 @@ tokens :-
 <0>                     "if"                            { makeToken LIf }
 <0>                     "elif"                          { makeToken LElif }
 <0>                     "else"                          { makeToken LElse }
+<0>                     "def"                           { makeToken LDef }
 <0>                     "return"                        { makeToken LReturn }
 <0>                     "break"                         { makeToken LBreak }
 <0>                     "continue"                      { makeToken LContinue }
@@ -74,6 +75,7 @@ tokens :-
 <0>                     "["                             { makeToken LOpenSqrBracket }
 <0>                     "]"                             { makeToken LCloseSqrBracket }
 <0>                     "="                             { makeToken LAssign }
+<0>                     "->"                            { makeToken LArrow }
 <0>                     "or"                            { makeToken LOr }
 <0>                     "and"                           { makeToken LAnd }
 <0>                     "not"                           { makeToken LNot }
@@ -105,6 +107,7 @@ data Lexeme
   | LIf
   | LElif
   | LElse
+  | LDef
   | LReturn
   | LBreak
   | LContinue
@@ -120,6 +123,7 @@ data Lexeme
   | LOpenSqrBracket
   | LCloseSqrBracket
   | LAssign
+  | LArrow
   | LOr
   | LAnd
   | LNot
@@ -182,6 +186,7 @@ makeToken lexeme (pos, _, _, str) len =
     LIf ->              return (TIf               token pos)
     LElif ->            return (TElif             token pos)
     LElse ->            return (TElse             token pos)
+    LDef ->             return (TDef              token pos)
     LReturn ->          return (TReturn           token pos)
     LBreak ->           return (TBreak            token pos)
     LContinue ->        return (TContinue         token pos)
@@ -205,10 +210,11 @@ makeToken lexeme (pos, _, _, str) len =
     LOpenSqrBracket ->  return (TOpenSqrBracket   token pos)
     LCloseSqrBracket -> return (TCloseSqrBracket  token pos)
     LAssign ->          return (TAssign           token pos)
+    LArrow ->           return (TArrow            token pos)
     LOr ->              return (TOr               token pos)
     LAnd ->             return (TAnd              token pos)
     LNot ->             return (TNot              token pos)
-    LComp ->            return (TComp             token pos token)
+    LComp ->            return (TComp             token pos)
     LBitOr ->           return (TBitOr            token pos)
     LBitXor ->          return (TBitXor           token pos)
     LBitAnd ->          return (TBitAnd           token pos)
@@ -234,6 +240,7 @@ data Token
   | TIf              { content :: String, position :: AlexPosn }
   | TElif            { content :: String, position :: AlexPosn }
   | TElse            { content :: String, position :: AlexPosn }
+  | TDef             { content :: String, position :: AlexPosn }
   | TReturn          { content :: String, position :: AlexPosn }
   | TBreak           { content :: String, position :: AlexPosn }
   | TContinue        { content :: String, position :: AlexPosn }
@@ -249,10 +256,11 @@ data Token
   | TOpenSqrBracket  { content :: String, position :: AlexPosn }
   | TCloseSqrBracket { content :: String, position :: AlexPosn }
   | TAssign          { content :: String, position :: AlexPosn }
+  | TArrow           { content :: String, position :: AlexPosn }
   | TOr              { content :: String, position :: AlexPosn }
   | TAnd             { content :: String, position :: AlexPosn }
   | TNot             { content :: String, position :: AlexPosn }
-  | TComp            { content :: String, position :: AlexPosn, op :: String }
+  | TComp            { content :: String, position :: AlexPosn }
   | TBitOr           { content :: String, position :: AlexPosn }
   | TBitXor          { content :: String, position :: AlexPosn }
   | TBitAnd          { content :: String, position :: AlexPosn }

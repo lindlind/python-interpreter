@@ -16,32 +16,60 @@ import Data.Typeable
 import Data.Bits
 
 data Environment = Env { varRefs :: Map.Map String (IORef PyType)
+                       , funcs :: Map.Map String ([String], Interpreter ())
+                       , stackArgs :: [IORef PyType]
                        , loopFlag :: Bool
+                       , funcFlag :: Bool
                        , breakFlag :: Bool
                        , continueFlag :: Bool
+                       , returnFlag :: Bool
                        }
 
 initEnvironment :: Environment
 initEnvironment = Env { varRefs = Map.empty
+                      , funcs = Map.empty
+                      , stackArgs = []
                       , loopFlag = False
+                      , funcFlag = False
                       , breakFlag = False
                       , continueFlag = False
+                      , returnFlag = False
                       }
-
-type Interpreter = StateT Environment IO
 
 updateRefMap :: (Map.Map String (IORef PyType) ->  Map.Map String (IORef PyType))
                 -> Environment -> Environment
-updateRefMap f env@Env{ varRefs = rs } = env { varRefs = f rs }
+updateRefMap f env@Env{ varRefs = mp } = env { varRefs = f mp }
+
+updateFuncsMap :: (  Map.Map String ([String], Interpreter ()) 
+                  -> Map.Map String ([String], Interpreter ())
+                  ) -> Environment -> Environment
+updateFuncsMap f env@Env{ funcs = mp } = env { funcs = f mp }
+
+pushStack :: IORef PyType -> Environment -> Environment
+pushStack ref env@Env{ stackArgs = stk } = env { stackArgs = ref : stk }
+
+popStack :: Environment -> Environment
+popStack env@Env{ stackArgs = ref : stk } = env { stackArgs = stk }
+
+getHeadStack :: Environment -> IORef PyType
+getHeadStack env@Env{ stackArgs = ref : stk } = ref
 
 updateLoopFlag :: Bool -> Environment -> Environment
 updateLoopFlag newFlag env@Env{ loopFlag = flag } = env { loopFlag = newFlag }
+
+updateFuncFlag :: Bool -> Environment -> Environment
+updateFuncFlag newFlag env@Env{ funcFlag = flag } = env { funcFlag = newFlag }
 
 updateBreakFlag :: Bool -> Environment -> Environment
 updateBreakFlag newFlag env@Env{ breakFlag = flag } = env { breakFlag = newFlag }
 
 updateContinueFlag :: Bool -> Environment -> Environment
 updateContinueFlag newFlag env@Env{ continueFlag = flag } = env { continueFlag = newFlag }
+
+updateReturnFlag :: Bool -> Environment -> Environment
+updateReturnFlag newFlag env@Env{ returnFlag = flag } = env { returnFlag = newFlag }
+
+type Interpreter = StateT Environment IO
 
 instance IStatement Interpreter where
   iIf expr thn = do
@@ -57,30 +85,20 @@ instance IStatement Interpreter where
     else els
 
   iWhile expr thn = do
+    env <- get
     cond <- expr
-    if cond
+    if cond && not (returnFlag env)
     then do
+      let oldLoopFlag = loopFlag env
       modify $ updateLoopFlag True
       thn
       modify $ updateContinueFlag False
-      env <- get
-      if breakFlag env
+      envThn <- get
+      if breakFlag envThn
       then modify $ updateBreakFlag False
       else iWhile expr thn
-      modify $ updateLoopFlag False
+      modify $ updateLoopFlag oldLoopFlag
     else return ()
-
-  iAssign name expr = do
-    env <- get
-    v <- expr
-    ref <- lift $ newIORef $ PyType v
-    modify $ updateRefMap (Map.insert name ref)
-
-  iProcedure expr = return ()
-
-  iPrint a = do
-    v <- a
-    liftIO $ putStrLn $ show v
 
   iBreak = do
     env <- get
@@ -93,6 +111,30 @@ instance IStatement Interpreter where
     if not $ loopFlag env
       then error "InterpretError: 'continue' outside loop"
       else modify $ updateContinueFlag True
+
+  iDefFunc0 name           a = modify $ updateFuncsMap (Map.insert name ([          ], a))
+  iDefFunc1 name arg1      a = modify $ updateFuncsMap (Map.insert name ([arg1      ], a))
+  iDefFunc2 name arg1 arg2 a = modify $ updateFuncsMap (Map.insert name ([arg1, arg2], a))
+
+  iReturn expr = do
+    env <- get
+    if not $ funcFlag env
+      then error "InterpretError: 'return' outside function"
+      else do
+        iAssign "~funcResult~" expr
+        modify $ updateReturnFlag True
+
+  iAssign name expr = do
+    env <- get
+    v <- expr
+    ref <- lift $ newIORef $ PyType v
+    modify $ updateRefMap (Map.insert name ref)
+
+  iProcedure expr = return ()
+
+  iPrint a = do
+    v <- a
+    liftIO $ putStrLn $ show v
 
   iNextStmt a b = do
     a
@@ -122,14 +164,81 @@ instance IExpr Interpreter where
   iPlus     a b = (+) <$> a <*> b
   iMinus    a b = (-) <$> a <*> b
   iMult     a b = (*) <$> a <*> b
-  iFloatDiv a b = (/) <$> a <*> b
+  iFloatDiv a b = (/) <$> iCastFloat a <*> iCastFloat b
   iDiv      a b = div <$> a <*> b
   iMod      a b = mod <$> a <*> b
-  iPow      a b = (**) <$> a <*> b
-  iUnarPlus  a = a
+  iPow      a b = (**) <$> iCastFloat a <*> iCastFloat b
+  iUnarPlus = id
   iUnarMinus a = (0-) <$> a
 
   iStrPlus a b = (++) <$> a <*> b
+  iSlice1 s a = iSlice2 s a $ (+1) <$> a
+  iSlice2 s a b = substr <$> a <*> b <*> s
+
+  iCallFunc0 name = do
+    env <- get
+
+    let (_, funcBlock) = funcs env Map.! name
+    put initEnvironment
+    modify $ updateFuncsMap (\_ -> funcs env)
+    modify $ updateFuncFlag True
+
+    funcBlock
+    funcEnv <- get
+    res <- iVariable "~funcResult~"
+
+    put env
+    return res
+
+  iCallFunc1 name a = do
+    a
+    envA <- get
+    let ref1 = getHeadStack envA
+    modify $ popStack
+    env <- get
+
+    let (arg1 : _, funcBlock) = funcs env Map.! name
+    put initEnvironment
+    modify $ updateFuncsMap (\_ -> funcs env)
+    modify $ updateRefMap (Map.insert arg1 ref1)
+    modify $ updateFuncFlag True
+
+    funcBlock
+    funcEnv <- get
+    res <- iVariable "~funcResult~"
+
+    put env
+    return res
+
+  iCallFunc2 name a b = do
+    a
+    envA <- get
+    let ref1 = getHeadStack envA
+    modify $ popStack
+    b
+    envB <- get
+    let ref2 = getHeadStack envB
+    modify $ popStack
+    env <- get
+
+    let (arg1 :arg2 : _, funcBlock) = funcs env Map.! name
+    put initEnvironment
+    modify $ updateFuncsMap (\_ -> funcs env)
+    modify $ updateRefMap (Map.insert arg1 ref1)
+    modify $ updateRefMap (Map.insert arg2 ref2)
+    modify $ updateFuncFlag True
+
+    funcBlock
+    funcEnv <- get
+    res <- iVariable "~funcResult~"
+    
+    put env
+    return res
+
+  iPushToStack a = do
+    v <- a
+    ref <- lift $ newIORef $ PyType v
+    modify $ pushStack ref
 
   iInput = liftIO $ getLine
 
@@ -151,6 +260,9 @@ instance IExpr Interpreter where
   iBrackets = id
 
 instance IPyScript Interpreter
+
+substr :: Integer -> Integer -> String -> String
+substr a b = take (fromIntegral $ b - a) . drop (fromIntegral a)
 
 -- qq :: ST s PyType -> Maybe String
 -- qq q = runST $ fromPyTypeStr <$> q

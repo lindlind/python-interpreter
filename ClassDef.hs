@@ -1,5 +1,6 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ConstrainedClassMethods#-}
+{-# LANGUAGE ConstrainedClassMethods #-}
 
 module ClassDef where
 
@@ -59,15 +60,24 @@ class (IPyType t, Num t) => IPyNumType t
 instance IPyNumType Double
 instance IPyNumType Integer
 
+data PyType where
+  PyType :: IPyType a => a -> PyType
+
 class IStatement stmt where
   iIf     :: (IExpr stmt) => stmt Bool -> stmt () -> stmt ()
   iIfElse :: (IExpr stmt) => stmt Bool -> stmt () -> stmt () -> stmt ()
   iWhile  :: (IExpr stmt) => stmt Bool -> stmt () -> stmt ()
+  iBreak    :: stmt ()
+  iContinue :: stmt ()
+
+  iDefFunc0 :: String                     -> stmt () -> stmt ()
+  iDefFunc1 :: String -> String           -> stmt () -> stmt ()
+  iDefFunc2 :: String -> String -> String -> stmt () -> stmt ()
+  iReturn :: (IExpr stmt, IPyType t) => stmt t  -> stmt ()
+
   iAssign    :: (IExpr stmt, IPyType t) => String -> stmt t  -> stmt ()
   iProcedure :: (IExpr stmt, IPyType t) =>           stmt t  -> stmt ()
   iPrint     :: (IExpr stmt, IPyType t) =>           stmt t  -> stmt ()
-  iBreak     :: stmt ()
-  iContinue  :: stmt ()
   iNextStmt  :: stmt () -> stmt () -> stmt ()
 
 class IExpr expr where
@@ -99,6 +109,13 @@ class IExpr expr where
   iUnarMinus :: IPyNumType t => expr t -> expr t
 
   iStrPlus :: expr String -> expr String -> expr String
+  iSlice1 :: expr String -> expr Integer                 -> expr String
+  iSlice2 :: expr String -> expr Integer -> expr Integer -> expr String
+
+  iCallFunc0 :: IPyType t => String                       -> expr t
+  iCallFunc1 :: IPyType t => String -> expr ()            -> expr t
+  iCallFunc2 :: IPyType t => String -> expr () -> expr () -> expr t
+  iPushToStack :: IPyType t => expr t -> expr ()
 
   iInput :: expr String
 
@@ -114,3 +131,5 @@ class IExpr expr where
   iBrackets :: IPyType t => expr t -> expr t
 
 class (IStatement p, IExpr p) => IPyScript p
+
+data MyException = TypeError String

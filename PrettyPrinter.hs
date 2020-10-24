@@ -30,11 +30,6 @@ decIndentEnv env@PrintEnv{ indent = x } = env { indent = x - 1 }
 concatPrinter :: String -> PrettyPrinter ()
 concatPrinter s = modify $ concatEnv s
 
-concatPrinterSafeType :: String -> a -> PrettyPrinter a
-concatPrinterSafeType s = \a -> do
-  modify $ concatEnv s
-  return a
-
 incIndentPrinter :: PrettyPrinter ()
 incIndentPrinter = modify incIndentEnv
 
@@ -53,10 +48,6 @@ castPP a = a >> return (def)
 castUnitPP :: PrettyPrinter a -> PrettyPrinter ()
 castUnitPP a = a >> return ()
 
---  iIf     :: (IExpr stmt) => stmt Bool -> stmt ()
---  iIfElse :: (IExpr stmt) => stmt Bool -> stmt () -> stmt ()
---  iWhile  :: (IExpr stmt) => stmt Bool -> stmt () -> stmt ()
-
 instance IStatement PrettyPrinter where
   iIf expr a = (concatPrinter "if ") >> expr >> (concatPrinter ":")
             >> incIndentPrinter >> newlinePrinter
@@ -73,11 +64,29 @@ instance IStatement PrettyPrinter where
                >> incIndentPrinter >> newlinePrinter
                >> a >> decIndentPrinter
 
+  iBreak = (concatPrinter "break")
+  iContinue = (concatPrinter "continue")
+  
+  iDefFunc0 s a = (concatPrinter $ "def " ++ s ++ "(") 
+               >> (concatPrinter "):") 
+               >> incIndentPrinter >> newlinePrinter
+               >> a >> decIndentPrinter
+
+  iDefFunc1 s s1 a = (concatPrinter $ "def " ++ s ++ "(" ++ s1) 
+                  >> (concatPrinter "):") 
+                  >> incIndentPrinter >> newlinePrinter
+                  >> a >> decIndentPrinter
+
+  iDefFunc2 s s1 s2 a = (concatPrinter $ "def " ++ s ++ "(" ++ s1 ++ ", " ++ s2) 
+                     >> (concatPrinter "):") 
+                     >> incIndentPrinter >> newlinePrinter
+                     >> a >> decIndentPrinter
+
+  iReturn expr = castUnitPP $ (concatPrinter "return ") >> expr
+
   iAssign s expr = castUnitPP $ (concatPrinter s) >> (concatPrinter " = ") >> expr
   iProcedure = castUnitPP
   iPrint a = (concatPrinter "print(") >> a >> (concatPrinter ")")
-  iBreak = (concatPrinter "break")
-  iContinue = (concatPrinter "continue")
   iNextStmt a b = a >> newlinePrinter >> b
 
 instance IExpr PrettyPrinter where
@@ -110,6 +119,21 @@ instance IExpr PrettyPrinter where
 
   iStrPlus a b = a >> (concatPrinter " + ") >> b
 
+  iSlice1 s a = castPP $ s >> (concatPrinter "[") 
+                      >> a >> (concatPrinter "]")
+
+  iSlice2 s a b = castPP $ s >> (concatPrinter "[") 
+                        >> a >> (concatPrinter ":") 
+                        >> b >> (concatPrinter "]")
+
+  iCallFunc0 s     = castPP $ (concatPrinter $ s ++ "(") >> (concatPrinter ")")
+  iCallFunc1 s a   = castPP $ (concatPrinter $ s ++ "(") >> a >> (concatPrinter ")")
+  iCallFunc2 s a b = castPP $ (concatPrinter $ s ++ "(") 
+                           >> a >> (concatPrinter ", ") 
+                           >> b >> (concatPrinter ")")
+
+  iPushToStack = castUnitPP
+
   iInput = castPP $ concatPrinter "input()"
 
   iValue x = castPP . concatPrinter . show $ x
@@ -121,7 +145,7 @@ instance IExpr PrettyPrinter where
   iCastBool  a = castPP $ (concatPrinter "bool")  >> iBrackets a
   iHidCastFloat = castPP
 
-  iBrackets a = (concatPrinter "( ") >> a >>= (concatPrinterSafeType " )")
+  iBrackets a = castPP $ (concatPrinter "( ") >> a >> (concatPrinter " )")
 
 instance IPyScript PrettyPrinter
 

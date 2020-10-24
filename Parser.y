@@ -20,6 +20,7 @@ import Lexer
   IF            { TIf               _ _ }
   ELIF          { TElif             _ _ }
   ELSE          { TElse             _ _ }
+  DEF           { TDef              _ _ }
   RETURN        { TReturn           _ _ }
   BREAK         { TBreak            _ _ }
   CONTINUE      { TContinue         _ _ }
@@ -29,16 +30,16 @@ import Lexer
   STR           { TString           _ _ sVal }
   VAR           { TVariable         _ _ name }
   ","           { TComma            _ _ }
-  "."           { TDot              _ _ }
   "("           { TOpenBracket      _ _ }
   ")"           { TCloseBracket     _ _ }
   "["           { TOpenSqrBracket   _ _ }
   "]"           { TCloseSqrBracket  _ _ }
   "="           { TAssign           _ _ }
+  "->"          { TArrow            _ _ }
   "or"          { TOr               _ _ }
   "and"         { TAnd              _ _ }
   "not"         { TNot              _ _ }
-  COMP          { TComp             _ _ op }
+  COMP          { TComp             _ _ }
   "|"           { TBitOr            _ _ }
   "^"           { TBitXor           _ _ }
   "&"           { TBitAnd           _ _ }
@@ -73,27 +74,34 @@ CompoundStatement :: {StatementParse}
 CompoundStatement
   : IfStatement                                          { $1 }
   | WhileStatement                                       { $1 }
---  | FunctionDef                                        { $1 }
-
-WhileStatement :: {StatementParse}
-WhileStatement
-  : WHILE Expr ":" Block                                 { WhileWT $2 $4 }
+  | FunctionDef                                          { $1 }
 
 IfStatement :: {StatementParse}
 IfStatement
-  : IF Expr ":" Block                                    { IfWT $2 $4 }
+  : IF Expr ":" Block                                    { IfWT     $2 $4 }
   | IF Expr ":" Block ElifStatement                      { IfElseWT $2 $4 $5 }
   | IF Expr ":" Block ElseStatement                      { IfElseWT $2 $4 $5 }
 
 ElifStatement :: {StatementParse}
 ElifStatement
-  : ELIF Expr ":" Block                                  { IfWT $2 $4 }
+  : ELIF Expr ":" Block                                  { IfWT     $2 $4 }
   | ELIF Expr ":" Block ElifStatement                    { IfElseWT $2 $4 $5 }
   | ELIF Expr ":" Block ElseStatement                    { IfElseWT $2 $4 $5 }
 
 ElseStatement :: {StatementParse}
 ElseStatement
   : ELSE ":" Block                                       { $3 }
+
+WhileStatement :: {StatementParse}
+WhileStatement
+  : WHILE Expr ":" Block                                 { WhileWT $2 $4 }
+
+FunctionDef :: {StatementParse}
+FunctionDef
+    : DEF VAR "("              ")" "->" TYPE ":" Block   { DefFunc0WT $2              $6  $8  }
+    | DEF VAR "(" VAR ":" TYPE ")" "->" TYPE ":" Block   { DefFunc1WT $2 $4 $6        $9  $11 }
+    | DEF VAR "(" VAR ":" TYPE 
+              "," VAR ":" TYPE ")" "->" TYPE ":" Block   { DefFunc2WT $2 $4 $6 $8 $10 $12 $15 }
 
 Block :: {StatementParse}
 Block
@@ -103,7 +111,7 @@ SmallStatement :: {StatementParse}
   : Procedure                                            { $1 }
   | Assignment                                           { $1 }
   | Print                                                { $1 }
---  | Return                                               { $1 }
+  | Return                                               { $1 }
   | BREAK                                                { BreakWT }
   | CONTINUE                                             { ContinueWT }
 
@@ -119,10 +127,9 @@ Print :: {StatementParse}
 Print
   : PRINT "(" Expr ")"                                   { PrintWT $3 }
 
-Exprs :: {[ExprParse]}
-Exprs
-  : Expr "," Exprs                                       { $1 : $3 }
-  | Expr                                                 { [$1] }
+Return :: {StatementParse}
+Return
+  : RETURN Expr                                          { ReturnWT $2 }
 
 Expr :: {ExprParse}
 Expr
@@ -199,19 +206,19 @@ Primary :: {ExprParse}
   | INPUT "(" ")"                                        { InputWT }
   | "(" Expr ")"                                         { RecWT $2 }
   | TYPE "(" Expr ")"                                    { CastWT $1 $3 }
---  | Primary "(" Arguments ")"                            { FuncWT $1 $3 }
---  | Primary "[" Slices "]"                               { SliceWT $1 $3 }
+  | FunctionCall                                         { $1 }
+  | StringSlices                                         { $1 }
 
-Arguments :: {[ExprParse]}
-Arguments
-  : Exprs                                                { $1 }
-  |                                                      { [] }
+FunctionCall :: {ExprParse}
+FunctionCall
+    : VAR "("               ")"                          { CallFunc0WT $1 }
+    | VAR "(" Expr          ")"                          { CallFunc1WT $1 $3 }
+    | VAR "(" Expr "," Expr ")"                          { CallFunc2WT $1 $3 $5 }
 
-Slices :: {[ExprParse]}
-Slices
-  : Expr ":" Expr ":" Expr                               { $1 : $3 : $5 : [] }
-  | Expr ":" Expr                                        { $1 : $3 : [] }
-  | Expr                                                 { $1 : [] }
+StringSlices :: {ExprParse}
+StringSlices
+  : Primary "[" Expr          "]"                        { Slice1WT $1 $3 }
+  | Primary "[" Expr ":" Expr "]"                        { Slice2WT $1 $3 $5 }
 
 Atom :: {ExprParse}
 Atom
@@ -226,14 +233,18 @@ Atom
 
 lexer = (alexMonadScan >>=)
 
-data StatementParse = IfWT ExprParse StatementParse
+data StatementParse = IfWT     ExprParse StatementParse
                     | IfElseWT ExprParse StatementParse StatementParse
-                    | WhileWT ExprParse StatementParse
+                    | WhileWT  ExprParse StatementParse
+                    | BreakWT
+                    | ContinueWT
+                    | DefFunc0WT Token                         Token StatementParse
+                    | DefFunc1WT Token Token Token             Token StatementParse
+                    | DefFunc2WT Token Token Token Token Token Token StatementParse
+                    | ReturnWT ExprParse
                     | ProcedureWT ExprParse
                     | AssignWT Token ExprParse
                     | PrintWT ExprParse
-                    | BreakWT
-                    | ContinueWT
                     | StmtPrsSeq StatementParse StatementParse
                     | EmptySeq
                     deriving (Eq, Show)
@@ -241,8 +252,11 @@ data StatementParse = IfWT ExprParse StatementParse
 data ExprParse = BinOpWT ExprParse Token ExprParse
                | UnOpWT Token ExprParse
                | CastWT Token ExprParse
-               | FuncWT ExprParse [ExprParse]
-               | SliceWT ExprParse [ExprParse]
+               | CallFunc0WT Token
+               | CallFunc1WT Token ExprParse
+               | CallFunc2WT Token ExprParse ExprParse
+               | Slice1WT ExprParse ExprParse
+               | Slice2WT ExprParse ExprParse ExprParse
                | AtomWT Token
                | InputWT
                | RecWT ExprParse
