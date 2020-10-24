@@ -54,21 +54,25 @@ import Data.Typeable
   , typeOf
   )
 
-data RetyperEnvironment = RetEnvStmt { oldStmt :: StatementParse
-                                     , varsMap :: Map.Map String TypeRep
-                                     , funcsMap :: Map.Map String ([TypeRep], TypeRep)
-                                     }
-                                     | RetEnvExpr
-                                     { oldExpr :: ExprParse
-                                     , varsMap :: Map.Map String TypeRep
-                                     , funcsMap :: Map.Map String ([TypeRep], TypeRep)
-                                     }
+data RetyperEnvironment 
+  = RetEnvStmt 
+  { oldStmt :: StatementParse
+  , varsMap :: Map.Map String TypeRep
+  , funcsMap :: Map.Map String ([TypeRep], TypeRep)
+  }
+  | RetEnvExpr
+  { oldExpr :: ExprParse
+  , varsMap :: Map.Map String TypeRep
+  , funcsMap :: Map.Map String ([TypeRep], TypeRep)
+  }
 
 initRetyperEnv :: StatementParse -> RetyperEnvironment
-initRetyperEnv statements = RetEnvStmt { oldStmt = statements
-                                       , varsMap = Map.empty
-                                       , funcsMap = Map.empty
-                                       }
+initRetyperEnv statements 
+  = RetEnvStmt 
+  { oldStmt = statements
+  , varsMap = Map.empty
+  , funcsMap = Map.empty
+  }
 
 type RetyperMonad = State RetyperEnvironment
 
@@ -76,7 +80,7 @@ type ExcRetyperMonad = ExceptT ParseException RetyperMonad
 
 runRetyper :: ExcRetyperMonad a 
               -> RetyperEnvironment 
-              -> (Either ParseException a, RetyperEnvironment)
+              -> (Either ParseException a, RetyperEnvironment)                
 runRetyper = runState . runExceptT
 
 data Encaps stmt where
@@ -104,22 +108,22 @@ fromEncapsStr (Encaps (enc :: expr t)) = do
 
 modifyEnvExpr :: ExprParse -> RetyperEnvironment -> RetyperEnvironment
 modifyEnvExpr newA env@RetEnvExpr{ oldExpr = _ } = env { oldExpr = newA }
-modifyEnvExpr _ RetEnvStmt{} = error "modifyEnvExpr: impossible constructor"
+modifyEnvExpr _ _ = error "modifyEnvExpr: impossible constructor"
 
 modifyEnvStmt :: StatementParse -> RetyperEnvironment -> RetyperEnvironment
-modifyEnvStmt _ RetEnvExpr{} = error "modifyEnvStmt: impossible constructor"
 modifyEnvStmt newA env@RetEnvStmt{ oldStmt = _ } = env { oldStmt = newA }
+modifyEnvStmt _ _ = error "modifyEnvStmt: impossible constructor"
 
 modifyEnvMapVars :: (Map.Map String TypeRep -> Map.Map String TypeRep)
                     -> RetyperEnvironment -> RetyperEnvironment
-modifyEnvMapVars _ RetEnvExpr{} = error "modifyEnvMapVars: impossible constructor"
 modifyEnvMapVars f env@RetEnvStmt{ varsMap = mp } = env { varsMap = f mp }
+modifyEnvMapVars _ _ = error "modifyEnvMapVars: impossible constructor"
 
 modifyEnvMapFuncs :: ( Map.Map String ([TypeRep], TypeRep) 
                        -> Map.Map String ([TypeRep], TypeRep)
                      ) -> RetyperEnvironment -> RetyperEnvironment
-modifyEnvMapFuncs _ RetEnvExpr{} = error "modifyEnvMapFuncs: impossible constructor"
 modifyEnvMapFuncs f env@RetEnvStmt{ funcsMap = mp } = env { funcsMap = f mp }
+modifyEnvMapFuncs _ _ = error "modifyEnvMapFuncs: impossible constructor"
 
 retypeVarStr :: IPyScript expr => String -> expr String
 retypeVarStr = iVariable
@@ -186,19 +190,19 @@ correctArgType rep enc =
     _ -> error "correctArgType: impossible case"
 
 tryUnOpStr :: (IPyScript expr, IPyType t) => (expr String -> expr t)
-               -> Encaps expr -> Maybe (Encaps expr)
+              -> Encaps expr -> Maybe (Encaps expr)
 tryUnOpStr unOp enc = do
   j <- fromEncapsStr enc
   return $ Encaps $ unOp j
 
 tryUnOpInt :: (IPyScript expr, IPyType t) => (expr Integer -> expr t)
-               -> Encaps expr -> Maybe (Encaps expr)
+              -> Encaps expr -> Maybe (Encaps expr)
 tryUnOpInt unOp enc = do
   j <- fromEncapsInt enc
   return $ Encaps $ unOp j
 
 tryUnOpFloat :: (IPyScript expr, IPyType t) => (expr Double -> expr t)
-                 -> Encaps expr -> Maybe (Encaps expr)
+                -> Encaps expr -> Maybe (Encaps expr)
 tryUnOpFloat unOp enc = do
   j <- fromEncapsFloat enc
   return $ Encaps $ unOp j
@@ -209,29 +213,35 @@ tryUnOpBool unOp enc = do
   j <- fromEncapsBool enc
   return $ Encaps $ unOp j
 
-tryBinOpStr :: (IPyScript expr, IPyType t) => (expr String -> expr String -> expr t)
+tryBinOpStr :: (IPyScript expr, IPyType t) 
+               => (expr String -> expr String -> expr t)
                -> Encaps expr -> Encaps expr -> Maybe (Encaps expr)
 tryBinOpStr binOp enc1 enc2 = do
   j1 <- fromEncapsStr enc1
   j2 <- fromEncapsStr enc2
   return $ Encaps $ binOp j1 j2
 
-tryBinOpInt :: (IPyScript expr, IPyType t) => (expr Integer -> expr Integer -> expr t)
+tryBinOpInt :: (IPyScript expr, IPyType t) 
+               => (expr Integer -> expr Integer -> expr t)
                -> Encaps expr -> Encaps expr -> Maybe (Encaps expr)
 tryBinOpInt binOp enc1 enc2 = do
   j1 <- fromEncapsInt enc1
   j2 <- fromEncapsInt enc2
   return $ Encaps $ binOp j1 j2
 
-tryBinOpFloat :: (IPyScript expr, IPyType t) => (expr Double -> expr Double -> expr t)
+tryBinOpFloat :: (IPyScript expr, IPyType t) 
+                 => (expr Double -> expr Double -> expr t)
                  -> Encaps expr -> Encaps expr -> Maybe (Encaps expr)
 tryBinOpFloat binOp enc1 enc2 = do
-  j1 <- ( fromEncapsInt enc1 >>= \int -> return (iHidCastFloat int) ) <|> fromEncapsFloat enc1
-  j2 <- ( fromEncapsInt enc2 >>= \int -> return (iHidCastFloat int) ) <|> fromEncapsFloat enc2
+  j1 <- ( fromEncapsInt enc1 >>= \int -> return (iHidCastFloat int) ) 
+        <|> fromEncapsFloat enc1
+  j2 <- ( fromEncapsInt enc2 >>= \int -> return (iHidCastFloat int) ) 
+        <|> fromEncapsFloat enc2
   return $ Encaps $ binOp j1 j2
 
-tryBinOpBool :: (IPyScript expr, IPyType t) => (expr Bool -> expr Bool -> expr t)
-                 -> Encaps expr -> Encaps expr -> Maybe (Encaps expr)
+tryBinOpBool :: (IPyScript expr, IPyType t) 
+                => (expr Bool -> expr Bool -> expr t)
+                -> Encaps expr -> Encaps expr -> Maybe (Encaps expr)
 tryBinOpBool binOp enc1 enc2 = do
   j1 <- fromEncapsBool enc1
   j2 <- fromEncapsBool enc2
@@ -284,11 +294,13 @@ stmtRetyper = do
         (Just _) -> throwError $ FunctionRedefinitionError fName
         Nothing -> do
           let listArgs = []
-          modify $ modifyEnvMapFuncs (Map.insert fName (listArgs, typeStrToRep resultType))
+          modify $ modifyEnvMapFuncs 
+            (Map.insert fName (listArgs, typeStrToRep resultType))
           modify $ modifyEnvStmt a
           body <- stmtRetyper
           put env
-          modify $ modifyEnvMapFuncs (Map.insert fName (listArgs, typeStrToRep resultType))
+          modify $ modifyEnvMapFuncs 
+            (Map.insert fName (listArgs, typeStrToRep resultType))
           return (iDefFunc0 fName body)
     DefFunc0WT _ _ _ -> error "stmtRetyper.DefFunc0WT: impossible case"
 
@@ -299,12 +311,15 @@ stmtRetyper = do
         (Just _) -> throwError $ FunctionRedefinitionError fName
         Nothing -> do
           let listArgs = [typeStrToRep argType]
-          modify $ modifyEnvMapVars  (Map.insert argName $ typeStrToRep argType)
-          modify $ modifyEnvMapFuncs (Map.insert fName (listArgs, typeStrToRep resultType))
+          modify $ modifyEnvMapVars
+            (Map.insert argName $ typeStrToRep argType)
+          modify $ modifyEnvMapFuncs 
+            (Map.insert fName (listArgs, typeStrToRep resultType))
           modify $ modifyEnvStmt a
           body <- stmtRetyper
           put env
-          modify $ modifyEnvMapFuncs (Map.insert fName (listArgs, typeStrToRep resultType))
+          modify $ modifyEnvMapFuncs 
+            (Map.insert fName (listArgs, typeStrToRep resultType))
           return (iDefFunc1 fName argName body)
     DefFunc1WT _ _ _ _ _ -> error "stmtRetyper.DefFunc1WT: impossible case"
 
@@ -316,13 +331,17 @@ stmtRetyper = do
         (Just _) -> throwError $ FunctionRedefinitionError fName
         Nothing -> do
           let listArgs = [typeStrToRep arg1Type, typeStrToRep arg2Type]
-          modify $ modifyEnvMapVars  (Map.insert arg1Name $ typeStrToRep arg1Type)      
-          modify $ modifyEnvMapVars  (Map.insert arg2Name $ typeStrToRep arg2Type)
-          modify $ modifyEnvMapFuncs (Map.insert fName (listArgs, typeStrToRep resultType))
+          modify $ modifyEnvMapVars 
+            (Map.insert arg1Name $ typeStrToRep arg1Type)      
+          modify $ modifyEnvMapVars 
+            (Map.insert arg2Name $ typeStrToRep arg2Type)
+          modify $ modifyEnvMapFuncs 
+            (Map.insert fName (listArgs, typeStrToRep resultType))
           modify $ modifyEnvStmt a
           body <- stmtRetyper
           put env
-          modify $ modifyEnvMapFuncs (Map.insert fName (listArgs, typeStrToRep resultType))
+          modify $ modifyEnvMapFuncs 
+            (Map.insert fName (listArgs, typeStrToRep resultType))
           return (iDefFunc2 fName arg1Name arg2Name body)
     DefFunc2WT _ _ _ _ _ _ _ -> error "stmtRetyper.DefFunc2WT: impossible case"
 
@@ -341,18 +360,25 @@ stmtRetyper = do
           let bool  = fromEncapsBool  enc
           case (str, int, float, bool) of
             (Just j, _, _, _) -> do
-              modify $ modifyEnvMapVars (Map.insert vName $ typeOf (def :: String))
+              modify $ modifyEnvMapVars 
+                (Map.insert vName $ typeOf (def :: String))
               return (iAssign vName j)        
             (_, Just j, _, _) -> do
-              modify $ modifyEnvMapVars (Map.insert vName $ typeOf (def :: Integer))
+              modify $ modifyEnvMapVars 
+                (Map.insert vName $ typeOf (def :: Integer))
               return (iAssign vName j)
             (_, _, Just j, _) -> do
-              modify $ modifyEnvMapVars (Map.insert vName $ typeOf (def :: Double))
+              modify $ modifyEnvMapVars 
+                (Map.insert vName $ typeOf (def :: Double))
               return (iAssign vName j)
             (_, _, _, Just j) -> do
-              modify $ modifyEnvMapVars (Map.insert vName $ typeOf (def :: Bool))
+              modify $ modifyEnvMapVars 
+                (Map.insert vName $ typeOf (def :: Bool))
               return (iAssign vName j)
-            _ -> throwError $ TypeError ["str", "int", "float", "bool"] "assign statement" posAssign
+            _ -> throwError $ TypeError 
+                                ["str", "int", "float", "bool"] 
+                                "assign statement" 
+                                posAssign
     AssignWT _ _ -> error "stmtRetyper.AssignWT: impossible case"
 
     ProcedureWT e -> do
@@ -479,12 +505,14 @@ exprRetyper = do
             Just j -> return j
             _ -> throwError $ OpTypeError (content token) (position token)
         ("-") -> do
-          let res = tryBinOpInt iMinus enc1 enc2 <|> tryBinOpFloat iMinus enc1 enc2
+          let res = tryBinOpInt   iMinus enc1 enc2 
+                <|> tryBinOpFloat iMinus enc1 enc2
           case res of
             Just j -> return j
             _ -> throwError $ OpTypeError (content token) (position token)
         ("*") -> do
-          let res = tryBinOpInt iMinus enc1 enc2 <|> tryBinOpFloat iMult enc1 enc2
+          let res = tryBinOpInt   iMult enc1 enc2 
+                <|> tryBinOpFloat iMult enc1 enc2
           case res of
             Just j -> return j
             _ -> throwError $ OpTypeError (content token) (position token)
@@ -601,11 +629,16 @@ exprRetyper = do
           enc1 <- exprRetyper
           modify $ modifyEnvExpr b
           enc2 <- exprRetyper
-          let (arg1, arg2) = case (enc1, enc2) of
-                              (Encaps j1, Encaps j2) -> (iPushToStack j1, iPushToStack j2)
-          case (correctArgType typeRepArg1 enc1, correctArgType typeRepArg2 enc2) of
-            (False, _    ) -> throwError $ FunctionArgsTypeError fName "first" pos
-            (True , False) -> throwError $ FunctionArgsTypeError fName "second" pos
+          let (arg1, arg2) = 
+            case (enc1, enc2) of
+              (Encaps j1, Encaps j2) -> (iPushToStack j1, iPushToStack j2)
+          case ( correctArgType typeRepArg1 enc1
+               , correctArgType typeRepArg2 enc2
+               ) of
+            (False, _    ) -> throwError $ 
+                                FunctionArgsTypeError fName "first" pos
+            (True , False) -> throwError $ 
+                                FunctionArgsTypeError fName "second" pos
             (True , True ) -> do 
               case show typeRepResult of
                 "[Char]"  -> return (Encaps $ retypeF2Str fName arg1 arg2)
@@ -667,9 +700,11 @@ exprRetyper = do
       case enc of
         Encaps j -> return (Encaps $iBrackets j)
 
-tfParse :: IPyScript p => String -> Either ParseException (p ())
+-- | Function converts python code from eDSL to tagless final eDSL, 
+-- and detects most of errors if they are in python code.
+tfParse :: IPyScript p => String -> Except ParseException (p ())
 tfParse string = case parse string of
-  Left s -> Left $ CommonParserError s
+  Left s -> throwError $ CommonParserError s
   Right statements ->
     let (result, _) = runRetyper stmtRetyper $ initRetyperEnv statements
     in result

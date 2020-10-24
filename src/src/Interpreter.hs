@@ -1,6 +1,4 @@
---{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
---{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Interpreter where
 
@@ -24,26 +22,30 @@ import Data.Bits
 import Data.IORef
 import System.IO
 
-data Environment = Env { varRefs :: Map.Map String (IORef PyType)
-                       , funcs :: Map.Map String ([String], Interpreter ())
-                       , stackArgs :: [IORef PyType]
-                       , loopFlag :: Bool
-                       , funcFlag :: Bool
-                       , breakFlag :: Bool
-                       , continueFlag :: Bool
-                       , returnFlag :: Bool
-                       }
+data Environment 
+  = Env 
+  { varRefs :: Map.Map String (IORef PyType)
+  , funcs :: Map.Map String ([String], Interpreter ())
+  , stackArgs :: [IORef PyType]
+  , loopFlag :: Bool
+  , funcFlag :: Bool
+  , breakFlag :: Bool
+  , continueFlag :: Bool
+  , returnFlag :: Bool
+  }
 
 initEnvironment :: Environment
-initEnvironment = Env { varRefs = Map.empty
-                      , funcs = Map.empty
-                      , stackArgs = []
-                      , loopFlag = False
-                      , funcFlag = False
-                      , breakFlag = False
-                      , continueFlag = False
-                      , returnFlag = False
-                      }
+initEnvironment 
+  = Env 
+  { varRefs = Map.empty
+  , funcs = Map.empty
+  , stackArgs = []
+  , loopFlag = False
+  , funcFlag = False
+  , breakFlag = False
+  , continueFlag = False
+  , returnFlag = False
+  }
 
 updateRefMap :: (Map.Map String (IORef PyType) ->  Map.Map String (IORef PyType))
                 -> Environment -> Environment
@@ -121,9 +123,12 @@ instance IStatement Interpreter where
       then error "InterpretError: 'continue' outside loop"
       else modify $ updateContinueFlag True
 
-  iDefFunc0 name           a = modify $ updateFuncsMap (Map.insert name ([          ], a))
-  iDefFunc1 name arg1      a = modify $ updateFuncsMap (Map.insert name ([arg1      ], a))
-  iDefFunc2 name arg1 arg2 a = modify $ updateFuncsMap (Map.insert name ([arg1, arg2], a))
+  iDefFunc0 name a = 
+    modify $ updateFuncsMap (Map.insert name ([], a))
+  iDefFunc1 name arg1 a = 
+    modify $ updateFuncsMap (Map.insert name ([arg1], a))
+  iDefFunc2 name arg1 arg2 a = 
+    modify $ updateFuncsMap (Map.insert name ([arg1, arg2], a))
 
   iReturn expr = do
     env <- get

@@ -21,9 +21,11 @@ import Control.Monad.State.Strict
   )
 import System.IO
 
-data PrinterEnviroment  = PrintEnv { asString :: String
-                                   , indent :: Int
-                                   }
+data PrinterEnviroment 
+  = PrintEnv 
+  { asString :: String
+  , indent :: Int
+  }
 
 type PrettyPrinter = State PrinterEnviroment
 
@@ -93,7 +95,7 @@ instance IStatement PrettyPrinter where
 
   iReturn expr = castUnitPP $ (concatPrinter "return ") >> expr
 
-  iAssign s expr = castUnitPP $ (concatPrinter s) >> (concatPrinter " = ") >> expr
+  iAssign s expr = castUnitPP $ (concatPrinter s ++ " = ") >> expr
   iProcedure = castUnitPP
   iPrint a = (concatPrinter "print(") >> a >> (concatPrinter ")")
   iNextStmt a b = a >> newlinePrinter >> b
@@ -135,8 +137,10 @@ instance IExpr PrettyPrinter where
                         >> a >> (concatPrinter ":") 
                         >> b >> (concatPrinter "]")
 
-  iCallFunc0 s     = castPP $ (concatPrinter $ s ++ "(") >> (concatPrinter ")")
-  iCallFunc1 s a   = castPP $ (concatPrinter $ s ++ "(") >> a >> (concatPrinter ")")
+  iCallFunc0 s     = castPP $ (concatPrinter $ s ++ "(") 
+                           >> (concatPrinter ")")
+  iCallFunc1 s a   = castPP $ (concatPrinter $ s ++ "(") 
+                           >> a >> (concatPrinter ")")
   iCallFunc2 s a b = castPP $ (concatPrinter $ s ++ "(") 
                            >> a >> (concatPrinter ", ") 
                            >> b >> (concatPrinter ")")

@@ -1,5 +1,7 @@
 {
-module Parser where
+module Parser
+  ( parse
+  ) where
 
 import Lexer
 }
@@ -273,6 +275,7 @@ parseError token =
                   ++ "column " ++ (show column) ++ ", "
                   ++ "token " ++  "'" ++ (content token) ++ "'"
 
+-- | Function converts python code from string to eDSL.
 parse :: String -> Either String StatementParse
 parse s = runAlex s parseFile
 

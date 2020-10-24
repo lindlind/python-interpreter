@@ -24,6 +24,7 @@ import Data.Typeable
   ( Typeable
   )
 
+-- | Define default value for used types.
 class    Default t       where def :: t
 
 instance Default String  where def = ""
@@ -31,6 +32,7 @@ instance Default Integer where def = 0
 instance Default Double  where def = 0
 instance Default Bool    where def = True
 
+-- | Class for easy converting one type to another.
 class SimpleCast t where
   castToStr     :: t -> String
   castToInteger :: t -> Integer
@@ -61,6 +63,7 @@ instance SimpleCast Bool where
   castToDouble  = realToFrac . fromEnum
   castToBool    = id
 
+-- | Class of supported python types. 
 class ( Typeable   t
       , Default    t
       , SimpleCast t
@@ -74,12 +77,16 @@ instance IPyType Integer
 instance IPyType String
 
 class (IPyType t, Num t) => IPyNumType t
+
 instance IPyNumType Double
 instance IPyNumType Integer
 
+-- | Encapsulated python type.
 data PyType where
   PyType :: IPyType a => a -> PyType
 
+-- | Tagless final class, which represents supported python statements.
+-- Statement has no type.
 class IStatement stmt where
   iIf     :: (IExpr stmt) => stmt Bool -> stmt () -> stmt ()
   iIfElse :: (IExpr stmt) => stmt Bool -> stmt () -> stmt () -> stmt ()
@@ -97,6 +104,8 @@ class IStatement stmt where
   iPrint     :: (IExpr stmt, IPyType t) =>           stmt t  -> stmt ()
   iNextStmt  :: stmt () -> stmt () -> stmt ()
 
+-- | Tagless final class, which represents supported python expressions.
+-- Expression has one of supported python types, represented in IPyType class.
 class IExpr expr where
   iOr  :: expr Bool -> expr Bool -> expr Bool
   iAnd :: expr Bool -> expr Bool -> expr Bool
@@ -147,17 +156,21 @@ class IExpr expr where
 
   iBrackets :: IPyType t => expr t -> expr t
 
+-- | Tagless final class, which represents 
+-- supported python expressions and statements.
 class (IStatement p, IExpr p) => IPyScript p
 
-data ParseException = CommonParserError String
-                    | TypeError [String] String AlexPosn
-                    | OpTypeError String AlexPosn
-                    | CastTypeError AlexPosn
-                    | VarNotDefinedError String AlexPosn
-                    | FunctionNotDefinedError String AlexPosn
-                    | FunctionRedefinitionError String
-                    | FunctionArgsTypeError String String AlexPosn
-                    | FunctionArgsCountError String AlexPosn
+-- | Custom type of parser exceptions.
+data ParseException 
+  = CommonParserError String
+  | TypeError [String] String AlexPosn
+  | OpTypeError String AlexPosn
+  | CastTypeError AlexPosn
+  | VarNotDefinedError String AlexPosn
+  | FunctionNotDefinedError String AlexPosn
+  | FunctionRedefinitionError String
+  | FunctionArgsTypeError String String AlexPosn             
+  | FunctionArgsCountError String AlexPosn
 
 instance Show ParseException where
   show (CommonParserError s) = s
