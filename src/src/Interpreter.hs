@@ -1,19 +1,28 @@
-{-# LANGUAGE RankNTypes #-}
+--{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+--{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Interpreter where
 
 import ClassDef
+  ( IExpr (..)
+  , IStatement (..)
+  , IPyScript
+  , IPyType
+  , SimpleCast (..)
+  , PyType (..)
+  )
 import Retyper
+  ( tfParse
+  )
 
 import Control.Monad.ST
-import Data.IORef
-import System.IO
 import Control.Monad.State.Strict
 import qualified Data.Map.Strict as Map
 import Data.Typeable
 import Data.Bits
+import Data.IORef
+import System.IO
 
 data Environment = Env { varRefs :: Map.Map String (IORef PyType)
                        , funcs :: Map.Map String ([String], Interpreter ())
@@ -169,7 +178,7 @@ instance IExpr Interpreter where
   iMod      a b = mod <$> a <*> b
   iPow      a b = (**) <$> iCastFloat a <*> iCastFloat b
   iUnarPlus = id
-  iUnarMinus a = (0-) <$> a
+  iUnarMinus a = (0 -) <$> a
 
   iStrPlus a b = (++) <$> a <*> b
   iSlice1 s a = iSlice2 s a $ (+1) <$> a
@@ -280,7 +289,7 @@ main = do
   inh <- openFile "py.py" ReadMode
   contents <- hGetContents inh
   case tfParse contents of
-    Left s -> putStrLn s
+    Left s -> putStrLn $ show s
     Right pyscript -> do
       interpretScript $ pyscript
       -- let ref = varRefs env Map.! "result"

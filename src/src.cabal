@@ -1,0 +1,36 @@
+name:                src
+version:             0.1.0.0
+synopsis:            Synopsis for interpreter
+description:         Description for interpreter
+
+homepage:            https://github.com/lindlind/python-interpreter/blob/master/src
+license:             MIT
+license-file:        LICENSE
+author:              lindlind
+maintainer:          lindvv@yandex.ru
+copyright:           2020 lindlind
+
+category:            Web
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+tested-with:         GHC == 8.0.1
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Lexer
+                     , Parser
+                     , ClassDef
+                     , Retyper
+                     , PrettyPrinter
+                     , Interpreter
+
+  ghc-options:         -Wall
+  build-depends:       base >= 4.9 && < 5
+                     , mtl
+                     , array
+                     , split
+                     , containers
+  default-language:    Haskell2010
+
+

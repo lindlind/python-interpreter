@@ -1,16 +1,25 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module PrettyPrinter where
 
 import ClassDef
+  ( IExpr (..)
+  , IStatement (..)
+  , IPyScript
+  , IPyType
+  , def
+  )
 import Retyper
-import Parser
+  ( tfParse
+  )
 
-import System.IO
 import Control.Monad.State.Strict
+  ( State
+  , get
+  , modify
+  , execState
+  )
+import System.IO
 
 data PrinterEnviroment  = PrintEnv { asString :: String
                                    , indent :: Int
@@ -153,7 +162,7 @@ main = do
   inh <- openFile "py.py" ReadMode
   contents <- hGetContents inh
   case tfParse contents of
-    Left s -> putStrLn s
+    Left s -> putStrLn $ show s
     Right pyscript -> putStrLn $ asString $ execState pyscript $ PrintEnv "" 0
   -- case parse contents of
   --   Left s -> putStrLn s
