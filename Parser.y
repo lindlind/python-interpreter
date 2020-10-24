@@ -78,15 +78,15 @@ CompoundStatement
 
 IfStatement :: {StatementParse}
 IfStatement
-  : IF Expr ":" Block                                    { IfWT     $2 $4 }
-  | IF Expr ":" Block ElifStatement                      { IfElseWT $2 $4 $5 }
-  | IF Expr ":" Block ElseStatement                      { IfElseWT $2 $4 $5 }
+  : IF Expr ":" Block                                    { IfWT     (position $1) $2 $4 }
+  | IF Expr ":" Block ElifStatement                      { IfElseWT (position $1) $2 $4 $5 }
+  | IF Expr ":" Block ElseStatement                      { IfElseWT (position $1) $2 $4 $5 }
 
 ElifStatement :: {StatementParse}
 ElifStatement
-  : ELIF Expr ":" Block                                  { IfWT     $2 $4 }
-  | ELIF Expr ":" Block ElifStatement                    { IfElseWT $2 $4 $5 }
-  | ELIF Expr ":" Block ElseStatement                    { IfElseWT $2 $4 $5 }
+  : ELIF Expr ":" Block                                  { IfWT     (position $1) $2 $4 }
+  | ELIF Expr ":" Block ElifStatement                    { IfElseWT (position $1) $2 $4 $5 }
+  | ELIF Expr ":" Block ElseStatement                    { IfElseWT (position $1) $2 $4 $5 }
 
 ElseStatement :: {StatementParse}
 ElseStatement
@@ -94,7 +94,7 @@ ElseStatement
 
 WhileStatement :: {StatementParse}
 WhileStatement
-  : WHILE Expr ":" Block                                 { WhileWT $2 $4 }
+  : WHILE Expr ":" Block                                 { WhileWT (position $1) $2 $4 }
 
 FunctionDef :: {StatementParse}
 FunctionDef
@@ -217,8 +217,8 @@ FunctionCall
 
 StringSlices :: {ExprParse}
 StringSlices
-  : Primary "[" Expr          "]"                        { Slice1WT $1 $3 }
-  | Primary "[" Expr ":" Expr "]"                        { Slice2WT $1 $3 $5 }
+  : Primary "[" Expr          "]"                        { Slice1WT $2 $1 $3 }
+  | Primary "[" Expr ":" Expr "]"                        { Slice2WT $2 $1 $3 $5 }
 
 Atom :: {ExprParse}
 Atom
@@ -233,9 +233,9 @@ Atom
 
 lexer = (alexMonadScan >>=)
 
-data StatementParse = IfWT     ExprParse StatementParse
-                    | IfElseWT ExprParse StatementParse StatementParse
-                    | WhileWT  ExprParse StatementParse
+data StatementParse = IfWT     AlexPosn ExprParse StatementParse
+                    | IfElseWT AlexPosn ExprParse StatementParse StatementParse
+                    | WhileWT  AlexPosn ExprParse StatementParse
                     | BreakWT
                     | ContinueWT
                     | DefFunc0WT Token                         Token StatementParse
@@ -255,14 +255,15 @@ data ExprParse = BinOpWT ExprParse Token ExprParse
                | CallFunc0WT Token
                | CallFunc1WT Token ExprParse
                | CallFunc2WT Token ExprParse ExprParse
-               | Slice1WT ExprParse ExprParse
-               | Slice2WT ExprParse ExprParse ExprParse
+               | Slice1WT Token ExprParse ExprParse
+               | Slice2WT Token ExprParse ExprParse ExprParse
                | AtomWT Token
                | InputWT
                | RecWT ExprParse
                deriving (Eq, Show)
 
 parseError :: Token -> Alex a
+parseError TEof = alexError "Unexpected end of file (last empty line may be missed)"
 parseError token =
   let
     (AlexPn _ line column) = position token

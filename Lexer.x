@@ -293,5 +293,4 @@ getPrevIndent = Alex $ \s@AlexState{alex_ust=ust} -> Right (s, prevIndent ust)
 setPrevIndent :: Int -> Alex ()
 setPrevIndent indent = Alex $ \s -> Right (s{alex_ust=(alex_ust s){prevIndent=indent}}, ())
 
-
 }

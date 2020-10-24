@@ -1,11 +1,28 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs                   #-}
 {-# LANGUAGE ConstrainedClassMethods #-}
+{-# LANGUAGE FlexibleInstances       #-}
 
-module ClassDef where
+module ClassDef 
+  ( IExpr (..)
+  , IStatement (..)
+  , IPyScript
+  , IPyType
+  , SimpleCast (..)
+  , ParseException (..)
+  , PyType (..)
+  , def
+  ) where
 
-import Data.Bits
+import Lexer 
+  ( AlexPosn (..)
+  )
+
+import Data.List
+  ( intercalate
+  )
 import Data.Typeable
+  ( Typeable
+  )
 
 class    Default t       where def :: t
 
@@ -34,7 +51,7 @@ instance SimpleCast Integer where
 
 instance SimpleCast Double where
   castToStr     = show
-  castToInteger = toInteger . round
+  castToInteger = round
   castToDouble  = id
   castToBool    = (0 /=)
 
@@ -132,4 +149,55 @@ class IExpr expr where
 
 class (IStatement p, IExpr p) => IPyScript p
 
-data MyException = TypeError String
+data ParseException = CommonParserError String
+                    | TypeError [String] String AlexPosn
+                    | OpTypeError String AlexPosn
+                    | CastTypeError AlexPosn
+                    | VarNotDefinedError String AlexPosn
+                    | FunctionNotDefinedError String AlexPosn
+                    | FunctionRedefinitionError String
+                    | FunctionArgsTypeError String String AlexPosn
+                    | FunctionArgsCountError String AlexPosn
+
+instance Show ParseException where
+  show (CommonParserError s) = s
+  show (TypeError l stmt (AlexPn _ line column)) 
+       = "TypeError: "
+      ++ "wrong type in " ++ stmt ++ "; "
+      ++ "line " ++ (show line) ++ ", "
+      ++ "column " ++ (show column) ++ ", "
+      ++ "possible types: " ++ intercalate "," l
+  show (OpTypeError op (AlexPn _ line column)) 
+       = "OperationTypeError: "
+      ++ "wrong type in operation '" ++ op ++ "'; "
+      ++ "line " ++ (show line) ++ ", "
+      ++ "column " ++ (show column)
+  show (CastTypeError (AlexPn _ line column)) 
+       = "CastTypeError: "
+      ++ "wrong cast type;"
+      ++ "line " ++ (show line) ++ ", "
+      ++ "column " ++ (show column)
+  show (VarNotDefinedError name (AlexPn _ line column)) 
+       = "VarNotDefinedError: "
+      ++ "wrong variable '" ++ name ++ "'; "
+      ++ "line " ++ (show line) ++ ", "
+      ++ "column " ++ (show column)
+  show (FunctionNotDefinedError name (AlexPn _ line column)) 
+       = "FunctionNotDefinedError: "
+      ++ "wrong function '" ++ name ++ "'; "
+      ++ "line " ++ (show line) ++ ", "
+      ++ "column " ++ (show column)
+  show (FunctionRedefinitionError name) 
+       = "FunctionRedefinitionError: "
+      ++ "multiple definition of function '" ++ name ++ "'"
+  show (FunctionArgsTypeError name order (AlexPn _ line column)) 
+       = "FunctionArgsTypeError: "
+      ++ "wrong type of " ++ order ++ " variable "
+      ++ "in function '" ++ name ++ "'; "
+      ++ "line " ++ (show line) ++ ", "
+      ++ "column " ++ (show column)
+  show (FunctionArgsCountError name (AlexPn _ line column)) 
+       = "FunctionArgsCountError: "
+      ++ "wrong number of arguments in function '" ++ name ++ "'; "
+      ++ "line " ++ (show line) ++ ", "
+      ++ "column " ++ (show column)
