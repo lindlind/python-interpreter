@@ -1,9 +1,11 @@
+{-# LANGUAGE BlockArguments      #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
 module Retyper 
-  ( tfParse
+  ( tfConvert
+  , tfParse
   ) where
 
 import ClassDef
@@ -27,7 +29,8 @@ import Control.Applicative
   ( (<|>)
   )
 import Control.Monad.Except 
-  ( ExceptT
+  ( Except
+  , ExceptT
   , runExceptT
   , throwError
   )
@@ -629,9 +632,8 @@ exprRetyper = do
           enc1 <- exprRetyper
           modify $ modifyEnvExpr b
           enc2 <- exprRetyper
-          let (arg1, arg2) = 
-            case (enc1, enc2) of
-              (Encaps j1, Encaps j2) -> (iPushToStack j1, iPushToStack j2)
+          let (arg1, arg2) = case (enc1, enc2) of
+                              (Encaps j1, Encaps j2) -> (iPushToStack j1, iPushToStack j2)
           case ( correctArgType typeRepArg1 enc1
                , correctArgType typeRepArg2 enc2
                ) of
@@ -700,11 +702,19 @@ exprRetyper = do
       case enc of
         Encaps j -> return (Encaps $iBrackets j)
 
--- | Function converts python code from eDSL to tagless final eDSL, 
+-- | Function converts python code from eDSL to tagless final eDSL 
 -- and detects most of errors if they are in python code.
+tfConvert :: IPyScript p => StatementParse -> Except ParseException (p ())
+tfConvert statement = 
+  let (result, _) = runRetyper stmtRetyper $ initRetyperEnv statement
+  in case result of
+      Left err -> throwError err
+      Right pyscript -> return pyscript
+
+-- | Function parses python code from string to tagless final eDSL 
+-- and detects most of errors if they are in python code.
+-- It uses Happy's parse and tfConvert.
 tfParse :: IPyScript p => String -> Except ParseException (p ())
 tfParse string = case parse string of
   Left s -> throwError $ CommonParserError s
-  Right statements ->
-    let (result, _) = runRetyper stmtRetyper $ initRetyperEnv statements
-    in result
+  Right statement -> tfConvert statement

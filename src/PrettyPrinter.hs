@@ -13,6 +13,9 @@ import Retyper
   ( tfParse
   )
 
+import Control.Monad.Except 
+  ( runExcept
+  )
 import Control.Monad.State.Strict
   ( State
   , get
@@ -25,6 +28,13 @@ data PrinterEnviroment
   = PrintEnv 
   { asString :: String
   , indent :: Int
+  }
+
+initPrinterEnv :: PrinterEnviroment
+initPrinterEnv 
+  = PrintEnv 
+  { asString = ""
+  , indent = 0
   }
 
 type PrettyPrinter = State PrinterEnviroment
@@ -95,7 +105,7 @@ instance IStatement PrettyPrinter where
 
   iReturn expr = castUnitPP $ (concatPrinter "return ") >> expr
 
-  iAssign s expr = castUnitPP $ (concatPrinter s ++ " = ") >> expr
+  iAssign s expr = castUnitPP $ (concatPrinter $ s ++ " = ") >> expr
   iProcedure = castUnitPP
   iPrint a = (concatPrinter "print(") >> a >> (concatPrinter ")")
   iNextStmt a b = a >> newlinePrinter >> b
@@ -158,16 +168,20 @@ instance IExpr PrettyPrinter where
   iCastBool  a = castPP $ (concatPrinter "bool")  >> iBrackets a
   iHidCastFloat = castPP
 
-  iBrackets a = castPP $ (concatPrinter "( ") >> a >> (concatPrinter " )")
+  iBrackets a = castPP $ (concatPrinter "(") >> a >> (concatPrinter ")")
 
 instance IPyScript PrettyPrinter
 
-main = do
-  inh <- openFile "py.py" ReadMode
-  contents <- hGetContents inh
-  case tfParse contents of
-    Left s -> putStrLn $ show s
-    Right pyscript -> putStrLn $ asString $ execState pyscript $ PrintEnv "" 0
-  -- case parse contents of
-  --   Left s -> putStrLn s
-  --   Right statements -> putStrLn $ show $ statements
+-- | Function gets python code as tagless final eDSL
+-- and prints it in pretty form.
+prettyPrint :: PrettyPrinter () -> String
+prettyPrint pyscript = asString $ execState pyscript initPrinterEnv
+
+-- | Function gets python code as string,
+-- converts it to tagless final eDSL and prints it in pretty form.
+-- It uses Retyper's tfParse and prettyPrint.
+parseAndPrettyPrint :: String -> String
+parseAndPrettyPrint string = 
+  case runExcept $ tfParse string of
+    Left error -> show error
+    Right pyscript -> prettyPrint pyscript

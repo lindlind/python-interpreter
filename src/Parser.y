@@ -1,6 +1,8 @@
 {
 module Parser
-  ( parse
+  ( ExprParse (..)
+  , StatementParse (..)
+  , parse
   ) where
 
 import Lexer

@@ -69,7 +69,7 @@ class ( Typeable   t
       , SimpleCast t
       , Ord        t
       , Show       t
-      )              => IPyType t
+      ) => IPyType t
 
 instance IPyType Bool
 instance IPyType Double
