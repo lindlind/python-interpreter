@@ -37,14 +37,14 @@ tokens :-
 
 <0>                     "#"                             { begin onelineCommentSC }
 <onelineCommentSC>      .                               ;
-<onelineCommentSC>      $newline                        { (makeToken LNewline) `andBegin` 0 }
+<onelineCommentSC>      $newline                        { begin 0 }
 
 <0>                     \'\'\'                          { begin mutlilineCommentSC' }
 <0>                     \"\"\"                          { begin mutlilineCommentSC'' }
 <mutlilineCommentSC'>   [.\n]                           ;
 <mutlilineCommentSC''>  [.\n]                           ;
-<mutlilineCommentSC'>   \'\'\'                          { begin 0 }
-<mutlilineCommentSC''>  \"\"\"                          { begin 0 }
+<mutlilineCommentSC'>   \'\'\'\n                        { begin 0 }
+<mutlilineCommentSC''>  \"\"\"\n                        { begin 0 }
 
 <0>                     @type                           { makeToken LType }
 <0>                     "input"                         { makeToken LInput }
@@ -58,6 +58,8 @@ tokens :-
 <0>                     "break"                         { makeToken LBreak }
 <0>                     "continue"                      { makeToken LContinue }
 <0>                     @boolean                        { makeToken LBool }
+<0>                     \"\"                            { makeToken LEmptyString }
+<0>                     \'\'                            { makeToken LEmptyString }
 
 <0>                     \'                              { begin stringSC' }
 <0>                     \"                              { begin stringSC'' }
@@ -113,6 +115,7 @@ data Lexeme
   | LContinue
   | LBool
   | LString
+  | LEmptyString
   | LInteger
   | LFloat
   | LVariable
@@ -196,6 +199,7 @@ makeToken lexeme (pos, _, _, str) len =
                                                       "False" -> False
                                                   )
     LString ->          return (TString           token pos token)
+    LEmptyString ->     return (TString           ""    pos "")
     LInteger ->         return (TInteger          token pos $
                                                     ((read token) :: Integer)
                                                   )

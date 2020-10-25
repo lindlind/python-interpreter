@@ -109,7 +109,7 @@ FunctionDef
 
 Block :: {StatementParse}
 Block
-  : NEWLINE INDENT Statements DEDENT                     { $3 } -- problem with multiple dedents
+  : NEWLINE INDENT Statements DEDENT                     { $3 }
 
 SmallStatement :: {StatementParse}
   : Procedure                                            { $1 }

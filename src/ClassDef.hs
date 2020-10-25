@@ -1,10 +1,12 @@
-{-# LANGUAGE GADTs                   #-}
 {-# LANGUAGE ConstrainedClassMethods #-}
+{-# LANGUAGE GADTs                   #-}
 {-# LANGUAGE FlexibleInstances       #-}
+{-# LANGUAGE InstanceSigs            #-}
 
 module ClassDef 
   ( IExpr (..)
   , IStatement (..)
+  , IPyNumType
   , IPyScript
   , IPyType
   , SimpleCast (..)
@@ -173,6 +175,7 @@ data ParseException
   | FunctionArgsCountError String AlexPosn
 
 instance Show ParseException where
+  show :: ParseException -> String
   show (CommonParserError s) = s
   show (TypeError l stmt (AlexPn _ line column)) 
        = "TypeError: "
