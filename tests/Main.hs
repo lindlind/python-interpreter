@@ -156,6 +156,7 @@ compoundFiles =
   , "elif"
   , "while"
   , "func"
+  , "func2"
   ]
 
 negativeFiles :: [String]
@@ -378,6 +379,10 @@ compoundPrinterResults =
     ++ "r0 = f0()\n"
     ++ "r1 = f1(42 >> 1) + 1\n"
     ++ "r2 = f2(56, \"56\")"
+
+  ,    "def myMinus(x, y):\n"
+    ++ "    return x - y\n"
+    ++ "x = myMinus(myMinus(100, 10), myMinus(10, 1))"
   ]
 
 negativePrinterResults :: [String]
@@ -552,6 +557,7 @@ compoundInterpreterResults = map Map.fromList $
     , ("r1", PyType (64 :: Integer))
     , ("r2", PyType True)
     ]
+  , [ ("x", PyType (81 :: Integer)) ]
   ]
 
 checkPrettyPrinter :: [String] -> [String] -> [String] 

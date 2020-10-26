@@ -153,18 +153,10 @@ instance IStatement Interpreter where
     else return ()
   
   iBreak :: Interpreter () 
-  iBreak = do
-    env <- get
-    if not $ loopFlag env
-      then error "InterpretError: 'break' outside loop"
-      else modify $ updateBreakFlag True
+  iBreak = modify $ updateBreakFlag True
 
   iContinue :: Interpreter ()
-  iContinue = do
-    env <- get
-    if not $ loopFlag env
-      then error "InterpretError: 'continue' outside loop"
-      else modify $ updateContinueFlag True
+  iContinue = modify $ updateContinueFlag True
   
   iDefFunc0 :: String -> Interpreter () -> Interpreter ()
   iDefFunc0 name a = 
@@ -178,12 +170,9 @@ instance IStatement Interpreter where
 
   iReturn :: IPyType t => Interpreter t  -> Interpreter () 
   iReturn expr = do
-    env <- get
-    if not $ funcFlag env
-      then error "InterpretError: 'return' outside function"
-      else do
-        iAssign "~funcResult~" expr
-        modify $ updateReturnFlag True
+    iAssign "~funcResult~" expr
+    modify $ updateReturnFlag True
+        
   
   iAssign    :: IPyType t => String -> Interpreter t  -> Interpreter ()
   iAssign name expr = do
