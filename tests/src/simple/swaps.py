@@ -6,8 +6,8 @@ a = b
 b = tmp
 
 
-a = 1.2345
-b = 1234.5
+a = 1.2339
+b = 1233.9
 c = True
 tmp = c                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
 c = a / b

@@ -29,6 +29,7 @@ $newline = \n
 @comp = "=="|"!="|"<="|">="|"<"|">"
 
 tokens :-
+<0>                    ^$white*\n                       ;
 <0>                     $newline                        { makeToken LNewline `andBegin` startLine}
 <startLine>            ^$white*\n                       ;
 <0>                    ^@spaces                         { makeToken LTab }

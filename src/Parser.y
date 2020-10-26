@@ -105,7 +105,7 @@ FunctionDef
     : DEF VAR "("              ")" "->" TYPE ":" Block   { DefFunc0WT $2              $6  $8  }
     | DEF VAR "(" VAR ":" TYPE ")" "->" TYPE ":" Block   { DefFunc1WT $2 $4 $6        $9  $11 }
     | DEF VAR "(" VAR ":" TYPE 
-              "," VAR ":" TYPE ")" "->" TYPE ":" Block   { DefFunc2WT $2 $4 $6 $8 $10 $12 $15 }
+              "," VAR ":" TYPE ")" "->" TYPE ":" Block   { DefFunc2WT $2 $4 $6 $8 $10 $13 $15 }
 
 Block :: {StatementParse}
 Block

@@ -64,7 +64,7 @@ decIndentPrinter = modify decIndentEnv
 newlinePrinter :: PrettyPrinter ()
 newlinePrinter = do
   env <- get
-  let tabs = concat $ replicate (indent env) "  "
+  let tabs = concat $ replicate (indent env) "    "
   concatPrinter $ "\n" ++ tabs
 
 castPP :: (IPyType b) => PrettyPrinter a -> PrettyPrinter b
