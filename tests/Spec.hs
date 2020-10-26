@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE GADTs               #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE GADTs    #-}
 
 module Main where
 
